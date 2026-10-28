@@ -25,15 +25,18 @@ export const PROPS = {
   companies: {
     nome: ['name'], dominio: ['domain'], porte: ['colaboradores'], funcionarios: ['numberofemployees'],
     abrangencia: ['abrangencia_de_atuacao'], pais: ['pais', 'country'], segmento: ['segmento'], cnpj: ['cnpj'],
-    lifecycle: ['lifecyclestage'], origem: ['hs_object_source'], n_contatos: ['num_associated_contacts'], n_negocios: ['num_associated_deals']
+    lifecycle: ['lifecyclestage'], origem: ['hs_object_source'], n_contatos: ['num_associated_contacts'], n_negocios: ['num_associated_deals'],
+    country: ['country'], website: ['website'], linkedin: ['linkedin_company_page'], linkedin_alt: ['hs_linkedin_handle'], industry: ['industry']
   },
   contacts: {
     nome: ['firstname'], sobrenome: ['lastname'], email: ['email'], empresa: ['company'], cargo: ['cargo', 'jobtitle'],
     area_poc: ['area_do_poc'], origem: ['hs_object_source'], n_negocios: ['num_associated_deals'],
-    mql: ['hs_lifecyclestage_marketingqualifiedlead_date']
+    mql: ['hs_lifecyclestage_marketingqualifiedlead_date'],
+    jobtitle: ['jobtitle'], seniority: ['hs_seniority'], role: ['hs_role'], subrole: ['hs_sub_role'], linkedin: ['linkedin'], linkedin_alt: ['hs_linkedin_url']
   },
   deals: { nome: ['dealname'], pipeline: ['pipeline'], etapa: ['dealstage'], ganho: ['hs_is_closed_won'], cnpj: ['cnpj'], fechamento: ['closedate'] },
-  leads: { nome: ['hs_lead_name'], pipeline: ['hs_pipeline'], etapa: ['hs_pipeline_stage'] },
+  leads: { nome: ['hs_lead_name'], pipeline: ['hs_pipeline'], etapa: ['hs_pipeline_stage'], origem: ['origem'], fonte_de_entrada: ['fonte_de_entrada'], operacao: ['operacao'],
+    email: ['email'], cargo: ['cargo'], telefone: ['telefone'] },
   clientes: { nome: ['nome_do_cliente', 'hs_name'], etapa: ['hs_pipeline_stage'], mrr: ['valor_do_mrr', 'valor_mrr'], cnpj: ['cnpj', 'cnpj_do_cliente'],
     porte: ['porte_da_empresa', 'porte', 'colaboradores'], segmento: ['segmento_da_empresa', 'segmento'], criado: ['hs_createdate'] },
   contratos: { nome: ['nome_do_contrato', 'hs_name', 'nome'], etapa: ['hs_pipeline_stage'], mrr: ['valor_mrr', 'valor_mrr_1', 'valor_em_mrr'],

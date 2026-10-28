@@ -1,6 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import { hubspot } from './hubspot.mjs';
 import { computeAll } from './rules.mjs';
+import { computeMapa } from './mapa.mjs';
 import { PROPS, OBJ } from './config.mjs';
 
 export const store = () => getStore({ name: 'dhs', consistency: 'strong' });
@@ -31,6 +32,8 @@ export async function runMedicao() {
       await hs.listAll(gruposObj, props('grupos'), ['companies', 'contacts'])
     ];
     const { summary, lists } = computeAll({ companies, contacts, deals, leads, clientes, contratos, grupos, P, T });
+    const mp = computeMapa({ companies, contacts, leads, P });
+    summary.mapa = mp.mapa; Object.assign(lists, mp.lists);
     const fim = new Date();
     const out = { ...summary, gerado_em: fim.toISOString(), duracao_s: Math.round((fim - inicio) / 1000), propriedades_faltando: faltando, objeto_grupos: gruposObj };
     for (const [idp, rows] of Object.entries(lists)) await st.setJSON(`lists/${idp}`, rows);
