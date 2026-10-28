@@ -1,13 +1,17 @@
-import { PESOS, LEAD_PIPELINES, LEAD_AGENDADO, LEAD_FECHADO, DEAL_PIPE_RMAPP, CLIENTE_ATIVO, CONTRATO_VIGENTE, PORTAL } from './config.mjs';
+// Regras do Data Health Score — escopo: Empresas, Contatos e Leads (SDRs e Executivos).
+import { PESOS, LEAD_PIPELINES, LEAD_FECHADO, PORTAL } from './config.mjs';
 import { assoc } from './hubspot.mjs';
 
 const PUB = /^(gmail|hotmail|outlook|yahoo|icloud|live|bol|uol|terra)\./;
 const vazio = (v) => v == null || String(v).trim() === '';
-const normDom = (d) => (d || '').trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
+const sem = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+const normDom = (d) => (d || '').trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/[/?#].*$/, '');
 const rootKey = (dom) => { let m = dom.match(/([a-z0-9-]+)\.(?:com|net|org|gov|edu|co)\.[a-z]{2}$/); if (m) return m[1]; m = dom.match(/([a-z0-9-]+)\.[a-z]{2,}$/); return m ? m[1] : dom; };
 const normName = (s) => (s || '').normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 const digits = (s) => (s || '').replace(/\D/g, '');
 const num = (v) => (vazio(v) ? null : Number(v));
+const link = (t, id) => `https://app.hubspot.com/contacts/${PORTAL}/record/${t}/${id}`;
+const liSlug = (u, tipo) => { const m = String(u || '').toLowerCase().match(new RegExp(`linkedin\\.com/${tipo}/([^/?#]+)`)); return m ? decodeURIComponent(m[1]).replace(/\/$/, '') : null; };
 
 function cnpjValido(cn) {
   if (cn.length !== 14 || /^(\d)\1{13}$/.test(cn)) return false;
@@ -16,207 +20,214 @@ function cnpjValido(cn) {
 }
 // Faixas oficiais: Micro 1–9, Pequena 10–49, Média 50–99, Grande 100–999, Enterprise 1000+
 function porteCoerente(porte, n) {
-  const p = (porte || '').toLowerCase();
+  const p = sem(porte);
   if (p.startsWith('micro')) return n >= 1 && n <= 9;
   if (p.startsWith('pequena')) return n >= 10 && n <= 49;
-  if (p.startsWith('m') && p.includes('dia')) return n >= 50 && n <= 99;
+  if (p.startsWith('media')) return n >= 50 && n <= 99;
   if (p.startsWith('grande')) return n >= 100 && n <= 999;
   if (p.startsWith('enterprise')) return n >= 1000;
   return true;
 }
-const link = (typeId, id) => `https://app.hubspot.com/contacts/${PORTAL}/record/${typeId}/${id}`;
+// País: nomes em português e inglês para a mesma chave
+const PAISES = { brasil: 'br', brazil: 'br', br: 'br', 'estados unidos': 'us', 'united states': 'us', usa: 'us', eua: 'us', us: 'us', mexico: 'mx', mx: 'mx', argentina: 'ar', chile: 'cl', colombia: 'co', peru: 'pe',
+  portugal: 'pt', espanha: 'es', spain: 'es', uruguai: 'uy', uruguay: 'uy', paraguai: 'py', paraguay: 'py', equador: 'ec', ecuador: 'ec', bolivia: 'bo', venezuela: 've', canada: 'ca',
+  'reino unido': 'gb', 'united kingdom': 'gb', inglaterra: 'gb', alemanha: 'de', germany: 'de', franca: 'fr', france: 'fr', italia: 'it', italy: 'it', india: 'in', china: 'cn', japao: 'jp', japan: 'jp',
+  'panama': 'pa', 'costa rica': 'cr', guatemala: 'gt', 'republica dominicana': 'do', 'dominican republic': 'do', israel: 'il', holanda: 'nl', netherlands: 'nl', 'paises baixos': 'nl', irlanda: 'ie', ireland: 'ie' };
+const paisKey = (v) => { const k = sem(v); return PAISES[k] || k; };
+// De-para do skill de enriquecimento
+const SENIORITY_CARGO = { c_suite: 'ceo', vp: 'ceo', director: 'diretor', manager: 'gerente', senior: 'especialista', entry_level: 'analista', junior: 'analista', intern: 'estagiario', trainee: 'estagiario' };
+const ROLE_AREA = { marketing: 'marketing', sales: 'vendas', product: 'produto', design: 'produto', engineering: 'tecnologia', it: 'tecnologia', technology: 'tecnologia', customer_success: 'customer success',
+  support: 'customer success', service: 'customer success', legal: 'juridico', compliance: 'juridico', finance: 'financeiro', accounting: 'financeiro', crm: 'crm', operations_crm: 'crm',
+  business_intelligence: 'bi', analytics: 'bi', data: 'bi', ecommerce: 'e-commerce', hr: 'recursos humanos', people: 'recursos humanos', recruiting: 'recursos humanos', operations: 'operacoes' };
+const bate = (oficial, esperado) => sem(oficial).startsWith(esperado) || sem(oficial).includes(esperado);
 
 export function computeAll(d) {
-  const { companies, contacts, deals, leads, clientes, contratos, grupos, P, T } = d;
+  const { companies, contacts, leads, P } = d;
   const g = (rec, obj, k) => { const name = P[obj][k]; return name ? rec.p[name] : undefined; };
 
-  // ---------- índices ----------
-  const comp = new Map(companies.map(c => [c.id, c]));
-  const contactCompanies = new Map(contacts.map(c => [c.id, assoc(c, 'compan')]));
+  // ---------- leads (SDRs e Executivos) ----------
   const leadsF = leads.filter(l => LEAD_PIPELINES.includes(String(g(l, 'leads', 'pipeline'))));
   const leadAberto = (l) => !LEAD_FECHADO.includes(String(g(l, 'leads', 'etapa')));
   const empLeadAberto = new Set(), ctLead = new Set();
   for (const l of leadsF) { assoc(l, 'contact').forEach(i => ctLead.add(i)); if (leadAberto(l)) assoc(l, 'compan').forEach(i => empLeadAberto.add(i)); }
-  const ganhoEmp = new Set();
-  for (const dl of deals) if (String(g(dl, 'deals', 'ganho')) === 'true') assoc(dl, 'compan').forEach(i => ganhoEmp.add(i));
-  const cliEmp = new Set();
-  for (const c of clientes) assoc(c, 'compan').forEach(i => cliEmp.add(i));
 
   // ---------- empresas ----------
   const isInternal = (c) => normName(g(c, 'companies', 'nome')).startsWith('rankmyapp') || normDom(g(c, 'companies', 'dominio')).includes('rankmyapp');
   const emps = companies.filter(c => !isInternal(c));
-  const byRoot = new Map(), byName = new Map();
+  const comp = new Map(emps.map(c => [c.id, c]));
+  const byDom = new Map(), byRoot = new Map(), byName = new Map();
+  const inc = (m, k) => m.set(k, (m.get(k) || 0) + 1);
   for (const c of emps) {
     const dom = normDom(g(c, 'companies', 'dominio'));
-    if (dom && !PUB.test(dom)) { const k = rootKey(dom); byRoot.set(k, (byRoot.get(k) || 0) + 1); }
-    const nm = normName(g(c, 'companies', 'nome'));
-    if (nm.length >= 3) byName.set(nm, (byName.get(nm) || 0) + 1);
+    if (dom && !PUB.test(dom)) { inc(byDom, dom); inc(byRoot, rootKey(dom)); }
+    const nm = normName(g(c, 'companies', 'nome')); if (nm.length >= 3) inc(byName, nm);
   }
   const E = emps.map(c => {
     const dom = normDom(g(c, 'companies', 'dominio')), nm = normName(g(c, 'companies', 'nome'));
     const porte = g(c, 'companies', 'porte'), func = num(g(c, 'companies', 'funcionarios'));
-    const pais = (g(c, 'companies', 'pais') || '').trim().toLowerCase();
+    const pais = g(c, 'companies', 'pais'), country = g(c, 'companies', 'country');
     const cn = digits(g(c, 'companies', 'cnpj'));
+    const site = normDom(g(c, 'companies', 'website'));
+    const li = g(c, 'companies', 'linkedin');
     const life = (g(c, 'companies', 'lifecycle') || '').toLowerCase();
-    const rk = dom && !PUB.test(dom) ? rootKey(dom) : null;
-    const dupKey = (rk && byRoot.get(rk) > 1) ? rk : (nm.length >= 3 && byName.get(nm) > 1 ? nm : null);
+    const okDom = dom && !PUB.test(dom);
     const f = {
-      porte_base: !vazio(porte) && func != null, cnpj_base: cn !== '' && ['', 'brasil', 'brazil', 'br'].includes(pais), ganho_base: ganhoEmp.has(c.id),
+      porte_base: !vazio(porte) && func != null, cnpj_base: cn !== '' && ['', 'br'].includes(vazio(pais) ? '' : paisKey(pais)),
+      pais_base: !vazio(pais) && !vazio(country), site_base: !!dom && !!site, li_base: !vazio(li),
       sem_func: func == null, sem_abrang: vazio(g(c, 'companies', 'abrangencia')), sem_pais: vazio(pais), sem_segmento: vazio(g(c, 'companies', 'segmento')),
-      sem_porte: vazio(porte), sem_dominio: vazio(dom), dup: !!dupKey, sem_contato: (num(g(c, 'companies', 'n_contatos')) || 0) === 0
+      sem_porte: vazio(porte), sem_dominio: vazio(dom),
+      dup_dom: okDom && byDom.get(dom) > 1,
+      sem_contato: (num(g(c, 'companies', 'n_contatos')) || 0) === 0
     };
+    f.dup_root = okDom && !f.dup_dom && byRoot.get(rootKey(dom)) > 1;
+    f.dup_nome = !f.dup_dom && !f.dup_root && nm.length >= 3 && byName.get(nm) > 1;
     f.porte_err = f.porte_base && !porteCoerente(porte, func);
     f.cnpj_err = f.cnpj_base && !cnpjValido(cn);
-    f.ganho_err = f.ganho_base && !['customer', 'evangelist', 'other'].includes(life);
-    f.acu = f.porte_err || f.cnpj_err; f.con = f.ganho_err;
+    f.pais_err = f.pais_base && paisKey(pais) !== paisKey(country);
+    f.site_err = f.site_base && rootKey(dom) !== rootKey(site);
+    f.li_err = f.li_base && !liSlug(li, 'company') && !liSlug(li, 'school') && !liSlug(li, 'showcase');
+    f.acu = f.porte_err || f.cnpj_err || f.pais_err || f.site_err || f.li_err;
     f.com = f.sem_func || f.sem_abrang || f.sem_pais || f.sem_segmento || f.sem_porte || f.sem_dominio;
-    f.saudavel = !(f.acu || f.con || f.com || f.dup || f.sem_contato);
+    f.dup = f.dup_dom || f.dup_root || f.dup_nome;
+    f.saudavel = !(f.acu || f.com || f.dup || f.sem_contato);
     const uso = (num(g(c, 'companies', 'n_negocios')) || 0) > 0 || life === 'customer' || empLeadAberto.has(c.id);
-    const row = { record_id: c.id, nome: g(c, 'companies', 'nome') || '', dominio: g(c, 'companies', 'dominio') || '', grupo_duplicidade: dupKey || '',
-      porte: porte || '', funcionarios: func == null ? '' : String(func), segmento: g(c, 'companies', 'segmento') || '', pais: g(c, 'companies', 'pais') || '',
-      abrangencia: g(c, 'companies', 'abrangencia') || '', cnpj: g(c, 'companies', 'cnpj') || '', lifecycle: life, origem: g(c, 'companies', 'origem') || '(vazio)',
+    const grupo = f.dup_dom ? dom : f.dup_root ? rootKey(dom) : f.dup_nome ? nm : '';
+    const row = { record_id: c.id, nome: g(c, 'companies', 'nome') || '', dominio: g(c, 'companies', 'dominio') || '', website: g(c, 'companies', 'website') || '', grupo_duplicidade: grupo,
+      porte: porte || '', funcionarios: func == null ? '' : String(func), segmento: g(c, 'companies', 'segmento') || '', pais: pais || '', country: country || '',
+      abrangencia: g(c, 'companies', 'abrangencia') || '', cnpj: g(c, 'companies', 'cnpj') || '', linkedin: li || '', origem: g(c, 'companies', 'origem') || '(vazio)',
       em_uso: uso ? 'sim' : 'não', link_hubspot: link('0-2', c.id) };
     return { id: c.id, uso, origem: row.origem, f, row };
   });
 
   // ---------- contatos ----------
   const cts = contacts.filter(c => !/@rankmyapp/i.test(g(c, 'contacts', 'email') || ''));
-  const dupCt = new Map();
-  const ctKey = (c) => { const n = (g(c, 'contacts', 'nome') || '').trim().toLowerCase(), s = (g(c, 'contacts', 'sobrenome') || '').trim().toLowerCase(), e = (g(c, 'contacts', 'empresa') || '').trim().toLowerCase(); return n && e ? `${n} ${s} · ${e}` : null; };
-  for (const c of cts) { const k = ctKey(c); if (k) dupCt.set(k, (dupCt.get(k) || 0) + 1); }
+  const ctById = new Map(cts.map(c => [c.id, c]));
+  const contactCompanies = new Map(cts.map(c => [c.id, assoc(c, 'compan').filter(i => comp.has(i))]));
+  const dupNome = new Map(), dupLi = new Map();
+  const ctKey = (c) => { const n = sem(g(c, 'contacts', 'nome')), s = sem(g(c, 'contacts', 'sobrenome')), e = sem(g(c, 'contacts', 'empresa')); return n && e ? `${n} ${s} · ${e}` : null; };
+  for (const c of cts) { const k = ctKey(c); if (k) inc(dupNome, k); const li = liSlug(g(c, 'contacts', 'linkedin'), 'in'); if (li) inc(dupLi, li); }
   const C = cts.map(c => {
     const email = (g(c, 'contacts', 'email') || '').toLowerCase(), dEmail = email.includes('@') ? email.split('@')[1] : '';
     const pub = PUB.test(dEmail);
-    const empIds = (contactCompanies.get(c.id) || []).filter(i => comp.has(i));
+    const empIds = contactCompanies.get(c.id) || [];
     const doms = empIds.map(i => normDom(g(comp.get(i), 'companies', 'dominio'))).filter(Boolean);
-    const nNeg = num(g(c, 'contacts', 'n_negocios')) || 0;
-    const k = ctKey(c);
-    const f = { dominio_base: doms.length > 0 && !!dEmail && !pub, sem_cargo: vazio(g(c, 'contacts', 'cargo')), sem_area: vazio(g(c, 'contacts', 'area_poc')),
-      dup: !!(k && dupCt.get(k) > 1), com_negocio: nNeg > 0, neg_sem_emp: nNeg > 0 && empIds.length === 0 };
-    f.dominio_div = f.dominio_base && !doms.some(dm => dEmail === dm || dEmail.endsWith('.' + dm) || dm.endsWith('.' + dEmail));
-    f.con = f.dominio_div; f.com = f.sem_cargo || f.sem_area; f.intg = f.neg_sem_emp;
-    f.saudavel = !(f.con || f.com || f.intg);
-    const uso = nNeg > 0 || ctLead.has(c.id) || !vazio(g(c, 'contacts', 'mql'));
+    const nomesEmp = empIds.map(i => normName(g(comp.get(i), 'companies', 'nome'))).filter(Boolean);
+    const cargo = g(c, 'contacts', 'cargo'), sen = sem(g(c, 'contacts', 'seniority')), area = g(c, 'contacts', 'area_poc'), role = sem(g(c, 'contacts', 'role'));
+    const li = g(c, 'contacts', 'linkedin'), liAlt = g(c, 'contacts', 'linkedin_alt');
+    const empTxt = normName(g(c, 'contacts', 'empresa'));
+    const k = ctKey(c), slug = liSlug(li, 'in');
+    const f = {
+      dominio_base: doms.length > 0 && !!dEmail && !pub,
+      empresa_base: empTxt.length >= 3 && nomesEmp.length > 0,
+      cargo_base: !vazio(cargo) && !!SENIORITY_CARGO[sen], area_base: !vazio(area) && !!ROLE_AREA[role],
+      li_base: !vazio(li) && !vazio(liAlt),
+      sem_cargo: vazio(cargo), sem_area: vazio(area), sem_linkedin: vazio(li),
+      dup_li: !!(slug && dupLi.get(slug) > 1), dup_nome: !!(k && dupNome.get(k) > 1),
+      sem_empresa: empIds.length === 0
+    };
+    f.dominio_div = f.dominio_base && !doms.some(dm => dEmail === dm || dEmail.endsWith('.' + dm) || dm.endsWith('.' + dEmail) || rootKey(dEmail) === rootKey(dm));
+    f.empresa_div = f.empresa_base && !nomesEmp.some(n => n.includes(empTxt) || empTxt.includes(n));
+    f.cargo_err = f.cargo_base && !bate(cargo, SENIORITY_CARGO[sen]);
+    f.area_err = f.area_base && !bate(area, ROLE_AREA[role]);
+    f.li_err = f.li_base && liSlug(li, 'in') !== liSlug(liAlt, 'in');
+    f.acu = f.cargo_err || f.area_err || f.li_err;
+    f.con = f.dominio_div || f.empresa_div;
+    f.com = f.sem_cargo || f.sem_area || f.sem_linkedin;
+    f.saudavel = !(f.acu || f.con || f.com || f.dup_li || f.sem_empresa);
+    const uso = (num(g(c, 'contacts', 'n_negocios')) || 0) > 0 || ctLead.has(c.id) || !vazio(g(c, 'contacts', 'mql'));
     const row = { record_id: c.id, nome: g(c, 'contacts', 'nome') || '', sobrenome: g(c, 'contacts', 'sobrenome') || '', email, empresa: g(c, 'contacts', 'empresa') || '',
-      grupo_duplicidade: f.dup ? k : '', cargo: g(c, 'contacts', 'cargo') || '', area_poc: g(c, 'contacts', 'area_poc') || '', origem: g(c, 'contacts', 'origem') || '(vazio)',
-      em_uso: uso ? 'sim' : 'não', link_hubspot: link('0-1', c.id) };
+      grupo_duplicidade: f.dup_li ? `linkedin.com/in/${slug}` : (f.dup_nome ? k : ''), cargo: cargo || '', hs_seniority: g(c, 'contacts', 'seniority') || '', area_poc: area || '', hs_role: g(c, 'contacts', 'role') || '',
+      linkedin: li || '', hs_linkedin_url: liAlt || '', origem: g(c, 'contacts', 'origem') || '(vazio)', em_uso: uso ? 'sim' : 'não', link_hubspot: link('0-1', c.id) };
     return { id: c.id, uso, origem: row.origem, f, row };
   });
 
-  // ---------- negócios ----------
-  const minCli = clientes.map(c => g(c, 'clientes', 'criado')).filter(Boolean).sort()[0] || '9999';
-  const N = deals.map(dl => {
-    const emps2 = assoc(dl, 'compan').filter(i => comp.has(i)), cts2 = assoc(dl, 'contact');
-    const cn = digits(g(dl, 'deals', 'cnpj'));
-    const cnEmp = emps2.map(i => digits(g(comp.get(i), 'companies', 'cnpj'))).filter(x => x.length === 14);
-    const won = String(g(dl, 'deals', 'ganho')) === 'true';
-    const f = {
-      cnpj_base: cn.length === 14 && cnEmp.length > 0,
-      assoc_base: emps2.length > 0 && cts2.length > 0,
-      ganho_base: won && String(g(dl, 'deals', 'pipeline')) === DEAL_PIPE_RMAPP && (g(dl, 'deals', 'fechamento') || '') >= minCli && emps2.length > 0,
-      intg: emps2.length === 0 || cts2.length === 0
-    };
-    f.cnpj_div = f.cnpj_base && cnEmp.every(x => x.slice(0, 8) !== cn.slice(0, 8));
-    f.contato_fora = f.assoc_base && cts2.some(ci => !(contactCompanies.get(ci) || []).some(e => emps2.includes(e)));
-    f.ganho_sem_cliente = f.ganho_base && !emps2.some(e => cliEmp.has(e));
-    return { id: dl.id, f, nome: g(dl, 'deals', 'nome') || '', cnpj: g(dl, 'deals', 'cnpj') || '', etapa: g(dl, 'deals', 'etapa') || '', fechamento: g(dl, 'deals', 'fechamento') || '' };
-  });
-
-  // ---------- contratos ----------
-  const ctrById = new Map(contratos.map(x => [x.id, x]));
-  const contratoCliente = new Map();
-  for (const c of clientes) assoc(c, 'contrato', T.contratos).forEach(k => { if (!contratoCliente.has(k)) contratoCliente.set(k, c.id); });
-  for (const x of contratos) assoc(x, 'cliente', T.clientes).forEach(k => { if (!contratoCliente.has(x.id)) contratoCliente.set(x.id, k); });
-  const dupGrp = new Map();
-  const ctrKey = (x) => { const ini = g(x, 'contratos', 'inicio'), mrr = num(g(x, 'contratos', 'mrr')); if (!ini || !(mrr > 0) || !contratoCliente.has(x.id)) return null;
-    return [contratoCliente.get(x.id), ini, g(x, 'contratos', 'fim') || '', mrr.toFixed(2), g(x, 'contratos', 'store') || '', (g(x, 'contratos', 'apps') || '').toLowerCase(), g(x, 'contratos', 'numero') || ''].join('|'); };
-  for (const x of contratos) { const k = ctrKey(x); if (k) dupGrp.set(k, (dupGrp.get(k) || 0) + 1); }
-  const K = contratos.map(x => { const k = ctrKey(x); const f = { dup: !!(k && dupGrp.get(k) > 1), sem_cliente: !contratoCliente.has(x.id), vigente: CONTRATO_VIGENTE.includes(String(g(x, 'contratos', 'etapa'))) };
-    f.saudavel = !(f.dup || f.sem_cliente); return { id: x.id, f, nome: g(x, 'contratos', 'nome') || '', chave: f.dup ? k : '', mrr: num(g(x, 'contratos', 'mrr')) || 0 }; });
-  const Kmap = new Map(K.map(k => [k.id, k]));
-
-  // ---------- clientes ----------
-  const L = clientes.map(c => {
-    const emps2 = assoc(c, 'compan').filter(i => comp.has(i)), cts2 = assoc(c, 'contact');
-    const ctrs = [...new Set([...assoc(c, 'contrato', T.contratos), ...[...contratoCliente.entries()].filter(([, v]) => v === c.id).map(([k]) => k)])].filter(k => Kmap.has(k));
-    const vig = ctrs.map(k => Kmap.get(k)).filter(k => k.f.vigente);
-    const ativo = CLIENTE_ATIVO.includes(String(g(c, 'clientes', 'etapa')));
-    const mrrCli = num(g(c, 'clientes', 'mrr')) || 0, mrrVig = vig.reduce((s, k) => s + k.mrr, 0);
-    const cnC = digits(g(c, 'clientes', 'cnpj')), porteC = g(c, 'clientes', 'porte'), segC = g(c, 'clientes', 'segmento');
-    const f = { ativo, tem_emp: emps2.length > 0, tem_ct: cts2.length > 0, n_vig: vig.length };
-    f.lifecycle_err = ativo && f.tem_emp && !emps2.some(i => ['customer', 'evangelist'].includes((g(comp.get(i), 'companies', 'lifecycle') || '').toLowerCase()));
-    f.sem_contrato = ativo && vig.length === 0;
-    f.mrr_div = ativo && vig.length > 0 && Math.abs(mrrCli - mrrVig) > 1;
-    f.dados_div = f.tem_emp && emps2.some(i => { const e = comp.get(i); const cnE = digits(g(e, 'companies', 'cnpj'));
-      return (cnC && cnE && cnC.slice(0, 8) !== cnE.slice(0, 8)) || (!vazio(porteC) && !vazio(g(e, 'companies', 'porte')) && porteC !== g(e, 'companies', 'porte')) || (!vazio(segC) && !vazio(g(e, 'companies', 'segmento')) && segC !== g(e, 'companies', 'segmento')); });
-    f.contato_fora = f.tem_emp && f.tem_ct && cts2.some(ci => !(contactCompanies.get(ci) || []).some(e => emps2.includes(e)));
-    f.saudavel = !(f.lifecycle_err || f.sem_contrato || f.mrr_div || f.dados_div || f.contato_fora || !f.tem_emp || !f.tem_ct);
-    return { id: c.id, f, nome: g(c, 'clientes', 'nome') || '', mrrCli, mrrVig };
-  });
-
-  // ---------- grupos ----------
-  const G = grupos.map(x => { const emps2 = assoc(x, 'compan').filter(i => comp.has(i)), cts2 = assoc(x, 'contact');
-    const f = { assoc_base: emps2.length > 0 && cts2.length > 0, intg: emps2.length === 0 || cts2.length === 0 };
-    f.contato_fora = f.assoc_base && cts2.some(ci => !(contactCompanies.get(ci) || []).some(e => emps2.includes(e)));
-    f.saudavel = !(f.intg || f.contato_fora); return { id: x.id, f, nome: g(x, 'grupos', 'nome') || '', status: g(x, 'grupos', 'status') || '' }; });
-
   // ---------- leads ----------
-  const LD = leadsF.map(l => { const etapa = String(g(l, 'leads', 'etapa')); const f = { agendado: LEAD_AGENDADO.includes(etapa), aberto: leadAberto(l) };
-    f.agendado_sem_neg = f.agendado && assoc(l, 'deal').length === 0; f.sem_assoc = assoc(l, 'contact').length === 0 || assoc(l, 'compan').length === 0;
-    f.saudavel = !(f.agendado_sem_neg || f.sem_assoc); return { id: l.id, f, nome: g(l, 'leads', 'nome') || '', etapa }; });
+  const abertosPorContato = new Map();
+  for (const l of leadsF) if (leadAberto(l)) for (const ci of assoc(l, 'contact')) { const k = `${g(l, 'leads', 'pipeline')}|${ci}`; inc(abertosPorContato, k); }
+  const LD = leadsF.map(l => {
+    const pipe = String(g(l, 'leads', 'pipeline')), sdr = pipe === '739923376';
+    const ctIds = assoc(l, 'contact'), empIds = assoc(l, 'compan');
+    const ct = ctIds.map(i => ctById.get(i)).find(Boolean);
+    const emailL = sem(g(l, 'leads', 'email')), cargoL = g(l, 'leads', 'cargo'), telL = digits(g(l, 'leads', 'telefone'));
+    const f = { aberto: leadAberto(l), sem_contato: ctIds.length === 0, sem_empresa: empIds.length === 0,
+      sem_origem: vazio(g(l, 'leads', 'origem')), sem_fonte: sdr && vazio(g(l, 'leads', 'fonte_de_entrada')),
+      email_base: !!ct && !!emailL && !vazio(g(ct, 'contacts', 'email')),
+      cargo_base: !!ct && !vazio(cargoL) && !vazio(g(ct, 'contacts', 'cargo')),
+      tel_base: !!ct && telL.length >= 8 && digits(g(ct, 'contacts', 'telefone') || g(ct, 'contacts', 'celular')).length >= 8,
+      emp_base: !!ct && empIds.length > 0 && (contactCompanies.get(ct.id) || []).length > 0,
+      dup: leadAberto(l) && ctIds.some(ci => abertosPorContato.get(`${pipe}|${ci}`) > 1) };
+    f.email_div = f.email_base && emailL !== sem(g(ct, 'contacts', 'email'));
+    f.cargo_div = f.cargo_base && sem(cargoL) !== sem(g(ct, 'contacts', 'cargo'));
+    f.tel_div = f.tel_base && telL.slice(-8) !== digits(g(ct, 'contacts', 'telefone') || g(ct, 'contacts', 'celular')).slice(-8);
+    f.emp_div = f.emp_base && !empIds.some(e => (contactCompanies.get(ct.id) || []).includes(e));
+    f.con = f.email_div || f.cargo_div || f.tel_div || f.emp_div;
+    f.com = f.sem_origem || f.sem_fonte;
+    f.saudavel = !(f.con || f.com || f.sem_contato || f.sem_empresa || f.dup);
+    return { id: l.id, f, nome: g(l, 'leads', 'nome') || '', pipeline: sdr ? 'SDRs' : 'Executivos', etapa: g(l, 'leads', 'etapa') || '',
+      email_lead: g(l, 'leads', 'email') || '', email_contato: ct ? g(ct, 'contacts', 'email') || '' : '', cargo_lead: cargoL || '', cargo_contato: ct ? g(ct, 'contacts', 'cargo') || '' : '',
+      tel_lead: g(l, 'leads', 'telefone') || '', tel_contato: ct ? (g(ct, 'contacts', 'telefone') || g(ct, 'contacts', 'celular') || '') : '' };
+  });
 
   // ---------- IDPs ----------
   const cnt = (arr, pred) => arr.reduce((s, x) => s + (pred(x) ? 1 : 0), 0);
   const sc = (arr, base, err) => ({ tb: cnt(arr, base), te: cnt(arr, x => base(x) && err(x)), ub: cnt(arr, x => x.uso && base(x)), ue: cnt(arr, x => x.uso && base(x) && err(x)) });
-  const same = (arr, base, err) => { const r = sc(arr.map(x => ({ ...x, uso: true })), base, err); return r; };
+  const scL = (base, err) => sc(LD.map(x => ({ ...x, uso: x.f.aberto })), base, err);
   const all = () => true;
-  const lists = {};
-  const IDP = [];
+  const lists = {}, IDP = [];
   const add = (idp, dim, regra, objeto, status, s, como, lista) => {
     IDP.push({ idp, dimensao: dim, regra, objeto, status, como, nota: status === 'Oficial' || status === 'Em validação', lista: !!lista,
       total_base: s ? s.tb : null, total: s ? s.te : null, total_ok: s ? s.tb - s.te : null, total_pct: s && s.tb ? s.te / s.tb : null,
       uso_base: s ? s.ub : null, uso: s ? s.ue : null, uso_ok: s ? s.ub - s.ue : null, uso_pct: s && s.ub ? s.ue / s.ub : null });
     if (lista) lists[idp] = lista;
   };
-  const listE = (base, err) => E.filter(x => base(x)).map(x => ({ ...x.row, _erro: !!err(x), _uso: x.uso }));
-  const listC = (base, err) => C.filter(x => base(x)).map(x => ({ ...x.row, _erro: !!err(x), _uso: x.uso }));
-  const listO = (arr, base, err, objeto, typeId, det) => arr.filter(base).map(x => ({ objeto, record_id: x.id, nome: x.nome, detalhe: det(x), link_hubspot: link(typeId, x.id), _erro: !!err(x), _uso: true }));
+  const listE = (base, err) => E.filter(base).map(x => ({ ...x.row, _erro: !!err(x), _uso: x.uso }));
+  const listC = (base, err) => C.filter(base).map(x => ({ ...x.row, _erro: !!err(x), _uso: x.uso }));
+  const listL = (base, err, cols) => LD.filter(base).map(x => ({ record_id: x.id, nome: x.nome, pipeline: x.pipeline, ...Object.fromEntries((cols || []).map(k => [k, x[k]])), link_hubspot: link('0-136', x.id), _erro: !!err(x), _uso: x.f.aberto }));
+  const pE = (k) => [x => x.f[k + '_base'], x => x.f[k + '_err']];
+  const pC = (k, e = '_err') => [x => x.f[k + '_base'], x => x.f[k + e]];
 
-  add('ACU-01', 'acuracia', 'Porte incoerente com o nº de funcionários', 'Empresa', 'Oficial', sc(E, x => x.f.porte_base, x => x.f.porte_err), 'Faixa do porte (Micro 1–9, Pequena 10–49, Média 50–99, Grande 100–999, Enterprise 1000+) × nº de funcionários.', listE(x => x.f.porte_base, x => x.f.porte_err));
-  add('ACU-02', 'acuracia', 'CNPJ inválido', 'Empresa', 'Oficial', sc(E, x => x.f.cnpj_base, x => x.f.cnpj_err), 'CNPJ de empresa do Brasil sem 14 dígitos, repetido ou com dígito verificador errado.', listE(x => x.f.cnpj_base, x => x.f.cnpj_err));
-  add('CON-01', 'consistencia', 'CNPJ do negócio diferente do da empresa', 'Negócio', 'Oficial', same(N, x => x.f.cnpj_base, x => x.f.cnpj_div), 'Raiz do CNPJ (8 dígitos) do negócio × empresas associadas; filial passa.', listO(N, x => x.f.cnpj_base, x => x.f.cnpj_div, 'Negócio', '0-3', x => `CNPJ do negócio: ${x.cnpj}`));
-  add('CON-02', 'consistencia', 'Negócio ganho, mas a empresa não está como cliente', 'Empresa', 'Oficial', sc(E, x => x.f.ganho_base, x => x.f.ganho_err), 'Empresa com negócio ganho cujo lifecycle não é cliente.', listE(x => x.f.ganho_base, x => x.f.ganho_err));
-  add('CON-03', 'consistencia', 'E-mail corporativo de domínio diferente da empresa', 'Contato', 'Em validação', sc(C, x => x.f.dominio_base, x => x.f.dominio_div), 'E-mail corporativo cujo domínio não bate com nenhuma empresa associada ao contato.', listC(x => x.f.dominio_base, x => x.f.dominio_div));
-  add('CON-04', 'consistencia', 'Cliente ativo cuja empresa não está como cliente', 'Cliente RMApp', 'Oficial', same(L, x => x.f.ativo && x.f.tem_emp, x => x.f.lifecycle_err), 'Cliente na etapa Ativo cuja empresa associada não está no lifecycle de cliente.', listO(L, x => x.f.ativo && x.f.tem_emp, x => x.f.lifecycle_err, 'Cliente RMApp', T.clientesId, () => 'Lifecycle da empresa associada'));
-  add('CON-05', 'consistencia', 'Cliente ativo sem contrato vigente', 'Cliente RMApp', 'Oficial', same(L, x => x.f.ativo, x => x.f.sem_contrato), 'Cliente na etapa Ativo sem contrato em etapa aberta (inclui Contrato estendido).', listO(L, x => x.f.ativo, x => x.f.sem_contrato, 'Cliente RMApp', T.clientesId, x => `Contratos vigentes: ${x.f.n_vig}`));
-  add('CON-06', 'consistencia', 'MRR do cliente ≠ soma dos contratos vigentes', 'Cliente RMApp', 'Oficial', same(L, x => x.f.ativo && x.f.n_vig > 0, x => x.f.mrr_div), 'MRR do cliente ativo diferente (mais de R$ 1) da soma do MRR dos contratos em etapa aberta.', listO(L, x => x.f.ativo && x.f.n_vig > 0, x => x.f.mrr_div, 'Cliente RMApp', T.clientesId, x => `MRR do cliente: ${Math.round(x.mrrCli)} · contratos vigentes: ${Math.round(x.mrrVig)}`));
-  add('CON-07', 'consistencia', 'Cliente com CNPJ, porte ou segmento ≠ empresa', 'Cliente RMApp', 'Em validação', same(L, x => x.f.tem_emp, x => x.f.dados_div), 'Raiz do CNPJ, porte ou segmento do cliente diferente da empresa associada.', listO(L, x => x.f.tem_emp, x => x.f.dados_div, 'Cliente RMApp', T.clientesId, () => 'CNPJ, porte ou segmento × empresa'));
-  add('CON-08', 'consistencia', 'Contato do grupo fora da empresa do grupo', 'Grupo RMAds', 'Oficial', same(G, x => x.f.assoc_base, x => x.f.contato_fora), 'Contato do grupo RMAds que não está associado a nenhuma empresa do grupo.', listO(G, x => x.f.assoc_base, x => x.f.contato_fora, 'Grupo RMAds', T.gruposId, x => `Status: ${x.status}`));
-  add('CON-09', 'consistencia', 'Contato do negócio fora da empresa do negócio', 'Negócio', 'Em validação', same(N, x => x.f.assoc_base, x => x.f.contato_fora), 'Contato do negócio que não está associado a nenhuma empresa do negócio.', listO(N, x => x.f.assoc_base, x => x.f.contato_fora, 'Negócio', '0-3', x => `Etapa: ${x.etapa}`));
-  add('CON-10', 'consistencia', 'Ganho RankMyApp sem cliente RMApp na empresa', 'Negócio', 'Oficial', same(N, x => x.f.ganho_base, x => x.f.ganho_sem_cliente), 'Negócio ganho do pipeline RMApp, fechado depois da criação do objeto de clientes, sem cliente RMApp na empresa.', listO(N, x => x.f.ganho_base, x => x.f.ganho_sem_cliente, 'Negócio', '0-3', x => `Fechado em ${String(x.fechamento).slice(0, 10)}`));
-  add('CON-11', 'consistencia', 'Contato do cliente fora da empresa do cliente', 'Cliente RMApp', 'Oficial', same(L, x => x.f.tem_emp && x.f.tem_ct, x => x.f.contato_fora), 'Contato do cliente RMApp que não está associado a nenhuma empresa do cliente.', listO(L, x => x.f.tem_emp && x.f.tem_ct, x => x.f.contato_fora, 'Cliente RMApp', T.clientesId, () => 'Contatos × empresa do cliente'));
-  add('COM-01', 'completude', 'Empresa com algum campo crítico vazio', 'Empresa', 'Oficial', sc(E, all, x => x.f.com), 'Registro inteiro conta como erro se faltar: nº de funcionários, abrangência, país, segmento, porte ou domínio.', listE(all, x => x.f.com));
-  const camposE = [['COM-01.1', 'sem_func', 'Sem nº de funcionários'], ['COM-01.2', 'sem_abrang', 'Sem abrangência'], ['COM-01.3', 'sem_pais', 'Sem país'], ['COM-01.4', 'sem_segmento', 'Sem segmento'], ['COM-01.5', 'sem_porte', 'Sem porte'], ['COM-01.6', 'sem_dominio', 'Sem domínio']];
-  for (const [id, k, t] of camposE) add(id, 'completude', '↳ ' + t, 'Empresa', 'Detalhe', sc(E, all, x => x.f[k]), 'Detalhe do COM-01, fora da nota.', listE(all, x => x.f[k]));
-  add('COM-02', 'completude', 'Contato com cargo ou área do POC vazio', 'Contato', 'Oficial', sc(C, all, x => x.f.com), 'Registro inteiro conta como erro se faltar cargo ou área do POC.', listC(all, x => x.f.com));
-  add('COM-02.1', 'completude', '↳ Sem cargo', 'Contato', 'Detalhe', sc(C, all, x => x.f.sem_cargo), 'Detalhe do COM-02, fora da nota.', listC(all, x => x.f.sem_cargo));
-  add('COM-02.2', 'completude', '↳ Sem área do POC', 'Contato', 'Detalhe', sc(C, all, x => x.f.sem_area), 'Detalhe do COM-02, fora da nota.', listC(all, x => x.f.sem_area));
-  add('COM-03', 'completude', 'Levantada de mão incompleta', 'Lead', 'Pendente', null, 'Aguarda definição dos campos obrigatórios.', null);
-  add('UNI-01', 'unicidade', 'Empresa com mesmo domínio raiz ou nome de outra', 'Empresa', 'Em validação', sc(E, all, x => x.f.dup), 'Mesmo domínio raiz (ignora subdomínio e terminação) ou mesmo nome sem acento, espaço e pontuação.', listE(all, x => x.f.dup));
-  add('UNI-02', 'unicidade', 'Contrato RMApp duplicado', 'Contrato RMApp', 'Em validação', same(K, all, x => x.f.dup), 'Contratos do mesmo cliente com mesmas datas, MRR, app, store e número.', listO(K, all, x => x.f.dup, 'Contrato RMApp', T.contratosId, x => x.chave || '—'));
-  add('UNI-03', 'unicidade', 'Contato com mesmo nome, sobrenome e empresa de outro', 'Contato', 'Monitoramento', sc(C, all, x => x.f.dup), 'Fica fora da nota até existir estratégia segura de mesclagem.', listC(all, x => x.f.dup));
+  // Acurácia
+  add('ACU-01', 'acuracia', 'Porte incoerente com o nº de funcionários', 'Empresa', 'Oficial', sc(E, ...pE('porte')), 'Faixa do porte (Micro 1–9, Pequena 10–49, Média 50–99, Grande 100–999, Enterprise 1000+) × numberofemployees.', listE(...pE('porte')));
+  add('ACU-02', 'acuracia', 'CNPJ inválido', 'Empresa', 'Oficial', sc(E, ...pE('cnpj')), 'CNPJ de empresa do Brasil sem 14 dígitos, repetido ou com dígito verificador errado.', listE(...pE('cnpj')));
+  add('ACU-03', 'acuracia', 'País diferente do country (Breeze)', 'Empresa', 'Em validação', sc(E, ...pE('pais')), 'pais × country, com nomes em português e inglês tratados como o mesmo país. Avalia empresas com os dois campos.', listE(...pE('pais')));
+  add('ACU-04', 'acuracia', 'Domínio diferente do site', 'Empresa', 'Em validação', sc(E, ...pE('site')), 'Domínio raiz de domain × domínio raiz de website. Avalia empresas com os dois campos.', listE(...pE('site')));
+  add('ACU-05', 'acuracia', 'LinkedIn da empresa não é página de empresa', 'Empresa', 'Oficial', sc(E, ...pE('li')), 'linkedin_company_page preenchido que não é um endereço linkedin.com/company (ou school/showcase).', listE(...pE('li')));
+  add('ACU-06', 'acuracia', 'Cargo diferente da senioridade (Breeze)', 'Contato', 'Em validação', sc(C, ...pC('cargo')), 'cargo × hs_seniority pelo de-para do enriquecimento (c_suite/vp → CEO, director → Diretor, manager → Gerente, senior → Especialista, junior → Analista, intern → Estagiário).', listC(...pC('cargo')));
+  add('ACU-07', 'acuracia', 'Área do POC diferente da função (Breeze)', 'Contato', 'Em validação', sc(C, ...pC('area')), 'area_do_poc × hs_role pelo de-para do enriquecimento (marketing → Marketing / Growth, sales → Vendas, engineering → Tecnologia…).', listC(...pC('area')));
+  add('ACU-08', 'acuracia', 'LinkedIn diferente do LinkedIn do Breeze', 'Contato', 'Em validação', sc(C, ...pC('li')), 'Perfil (linkedin.com/in/…) de linkedin × hs_linkedin_url. Avalia contatos com os dois campos.', listC(...pC('li')));
+  add('ACU-09', 'acuracia', 'Segmento diferente da indústria (Breeze)', 'Empresa', 'Pendente', null, 'A propriedade industry está oculta no HubSpot. Volta quando for liberada e o de-para industry → segmento for validado.', null);
+  // Consistência
+  add('CON-01', 'consistencia', 'E-mail corporativo de domínio diferente da empresa', 'Contato', 'Em validação', sc(C, x => x.f.dominio_base, x => x.f.dominio_div), 'Domínio do e-mail do contato × domínio das empresas associadas.', listC(x => x.f.dominio_base, x => x.f.dominio_div));
+  add('CON-02', 'consistencia', 'Campo "Empresa" diferente da empresa associada', 'Contato', 'Em validação', sc(C, x => x.f.empresa_base, x => x.f.empresa_div), 'Texto de company × nome das empresas associadas (sem acento, espaço e pontuação; um contido no outro passa).', listC(x => x.f.empresa_base, x => x.f.empresa_div));
+  add('CON-03', 'consistencia', 'E-mail do lead diferente do contato', 'Lead', 'Oficial', scL(x => x.f.email_base, x => x.f.email_div), 'email do lead × email do contato associado.', listL(x => x.f.email_base, x => x.f.email_div, ['email_lead', 'email_contato']));
+  add('CON-04', 'consistencia', 'Cargo do lead diferente do contato', 'Lead', 'Em validação', scL(x => x.f.cargo_base, x => x.f.cargo_div), 'cargo do lead × cargo do contato associado.', listL(x => x.f.cargo_base, x => x.f.cargo_div, ['cargo_lead', 'cargo_contato']));
+  add('CON-05', 'consistencia', 'Telefone do lead diferente do contato', 'Lead', 'Em validação', scL(x => x.f.tel_base, x => x.f.tel_div), 'Últimos 8 dígitos do telefone do lead × telefone ou celular do contato.', listL(x => x.f.tel_base, x => x.f.tel_div, ['tel_lead', 'tel_contato']));
+  add('CON-06', 'consistencia', 'Empresa do lead diferente da empresa do contato', 'Lead', 'Oficial', scL(x => x.f.emp_base, x => x.f.emp_div), 'Empresa associada ao lead × empresas associadas ao contato do lead.', listL(x => x.f.emp_base, x => x.f.emp_div));
+  // Completude
+  add('COM-01', 'completude', 'Empresa com algum campo vazio', 'Empresa', 'Oficial', sc(E, all, x => x.f.com), 'Conta como erro se faltar: nº de funcionários, abrangência, país, segmento, porte ou domínio.', listE(all, x => x.f.com));
+  for (const [id, k, t] of [['COM-01.1', 'sem_func', 'Sem nº de funcionários'], ['COM-01.2', 'sem_abrang', 'Sem abrangência'], ['COM-01.3', 'sem_pais', 'Sem país'], ['COM-01.4', 'sem_segmento', 'Sem segmento'], ['COM-01.5', 'sem_porte', 'Sem porte'], ['COM-01.6', 'sem_dominio', 'Sem domínio']])
+    add(id, 'completude', '↳ ' + t, 'Empresa', 'Detalhe', sc(E, all, x => x.f[k]), 'Detalhe do COM-01, fora da nota.', listE(all, x => x.f[k]));
+  add('COM-02', 'completude', 'Contato com algum campo vazio', 'Contato', 'Oficial', sc(C, all, x => x.f.com), 'Conta como erro se faltar: cargo, área do POC ou LinkedIn.', listC(all, x => x.f.com));
+  for (const [id, k, t] of [['COM-02.1', 'sem_cargo', 'Sem cargo'], ['COM-02.2', 'sem_area', 'Sem área do POC'], ['COM-02.3', 'sem_linkedin', 'Sem LinkedIn']])
+    add(id, 'completude', '↳ ' + t, 'Contato', 'Detalhe', sc(C, all, x => x.f[k]), 'Detalhe do COM-02, fora da nota.', listC(all, x => x.f[k]));
+  add('COM-03', 'completude', 'Lead com algum campo vazio', 'Lead', 'Em validação', scL(all, x => x.f.com), 'Conta como erro se faltar origem (SDRs e Executivos) ou fonte de entrada (só SDRs).', listL(all, x => x.f.com));
+  add('COM-03.1', 'completude', '↳ Sem origem', 'Lead', 'Detalhe', scL(all, x => x.f.sem_origem), 'Detalhe do COM-03, fora da nota.', listL(all, x => x.f.sem_origem));
+  add('COM-03.2', 'completude', '↳ Sem fonte de entrada (SDRs)', 'Lead', 'Detalhe', scL(x => x.pipeline === 'SDRs', x => x.f.sem_fonte), 'Detalhe do COM-03, fora da nota.', listL(x => x.pipeline === 'SDRs', x => x.f.sem_fonte));
+  // Duplicidade
+  add('UNI-01', 'unicidade', 'Empresas com o mesmo domínio', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_dom), 'Domínio idêntico (sem www e protocolo). Conta todos os registros do grupo.', listE(all, x => x.f.dup_dom));
+  add('UNI-02', 'unicidade', 'Empresas com o mesmo domínio raiz', 'Empresa', 'Em validação', sc(E, all, x => x.f.dup_root), 'Mesmo domínio raiz com terminação ou subdomínio diferente (vivara.com × carreiras.vivara.com.br). Não repete os casos do UNI-01.', listE(all, x => x.f.dup_root));
+  add('UNI-03', 'unicidade', 'Empresas com o mesmo nome', 'Empresa', 'Em validação', sc(E, all, x => x.f.dup_nome), 'Mesmo nome sem acento, espaço e pontuação, com domínios diferentes. Não repete UNI-01 e UNI-02.', listE(all, x => x.f.dup_nome));
+  add('UNI-04', 'unicidade', 'Contatos com o mesmo LinkedIn', 'Contato', 'Oficial', sc(C, all, x => x.f.dup_li), 'Mesmo perfil linkedin.com/in/… em mais de um contato.', listC(all, x => x.f.dup_li));
+  add('UNI-05', 'unicidade', 'Contatos com mesmo nome, sobrenome e empresa', 'Contato', 'Monitoramento', sc(C, all, x => x.f.dup_nome), 'Fica fora da nota até existir estratégia segura de mesclagem.', listC(all, x => x.f.dup_nome));
+  add('UNI-06', 'unicidade', 'Contato com mais de um lead aberto no mesmo pipeline', 'Lead', 'Em validação', scL(x => x.f.aberto, x => x.f.dup), 'Leads abertos do mesmo contato no mesmo pipeline (SDRs ou Executivos).', listL(x => x.f.aberto, x => x.f.dup));
+  // Integridade
   add('INT-01', 'integridade', 'Empresa sem contato', 'Empresa', 'Oficial', sc(E, all, x => x.f.sem_contato), 'Empresa sem nenhum contato associado.', listE(all, x => x.f.sem_contato));
-  add('INT-02', 'integridade', 'Contato com negócio, mas sem empresa', 'Contato', 'Oficial', sc(C, x => x.f.com_negocio, x => x.f.neg_sem_emp), 'Contato com negócio que não está associado a nenhuma empresa.', listC(x => x.f.com_negocio, x => x.f.neg_sem_emp));
-  add('INT-03', 'integridade', 'Negócio sem empresa ou sem contato', 'Negócio', 'Oficial', same(N, all, x => x.f.intg), 'Negócio sem empresa ou sem contato associado.', listO(N, all, x => x.f.intg, 'Negócio', '0-3', x => `Etapa: ${x.etapa}`));
-  add('INT-04', 'integridade', 'Cliente RMApp sem empresa', 'Cliente RMApp', 'Oficial', same(L, all, x => !x.f.tem_emp), 'Cliente RMApp sem empresa associada.', listO(L, all, x => !x.f.tem_emp, 'Cliente RMApp', T.clientesId, () => 'Empresa associada'));
-  add('INT-05', 'integridade', 'Grupo sem empresa ou sem contato', 'Grupo RMAds', 'Oficial', same(G, all, x => x.f.intg), 'Grupo RMAds sem empresa ou sem contato associado.', listO(G, all, x => x.f.intg, 'Grupo RMAds', T.gruposId, x => `Status: ${x.status}`));
-  add('INT-06', 'integridade', 'Contrato sem cliente', 'Contrato RMApp', 'Oficial', same(K, all, x => x.f.sem_cliente), 'Contrato RMApp sem cliente associado.', listO(K, all, x => x.f.sem_cliente, 'Contrato RMApp', T.contratosId, () => 'Cliente associado'));
-  add('INT-07', 'integridade', 'Lead agendado sem negócio', 'Lead', 'Oficial', same(LD, x => x.f.agendado, x => x.f.agendado_sem_neg), 'Lead dos pipelines SDRs (Reunião Agendada) ou Executivos (Agendado) sem negócio associado.', listO(LD, x => x.f.agendado, x => x.f.agendado_sem_neg, 'Lead', '0-136', x => `Etapa: ${x.etapa}`));
-  add('INT-08', 'integridade', 'Lead sem contato ou sem empresa', 'Lead', 'Oficial', same(LD, all, x => x.f.sem_assoc), 'Lead dos pipelines SDRs ou Executivos sem contato ou sem empresa.', listO(LD, all, x => x.f.sem_assoc, 'Lead', '0-136', x => `Etapa: ${x.etapa}`));
-  add('INT-09', 'integridade', 'Cliente RMApp sem contato', 'Cliente RMApp', 'Oficial', same(L, all, x => !x.f.tem_ct), 'Cliente RMApp sem contato associado.', listO(L, all, x => !x.f.tem_ct, 'Cliente RMApp', T.clientesId, () => 'Contato associado'));
+  add('INT-02', 'integridade', 'Contato sem empresa', 'Contato', 'Oficial', sc(C, all, x => x.f.sem_empresa), 'Contato sem nenhuma empresa associada.', listC(all, x => x.f.sem_empresa));
+  add('INT-03', 'integridade', 'Lead sem contato', 'Lead', 'Oficial', scL(all, x => x.f.sem_contato), 'Lead sem contato associado.', listL(all, x => x.f.sem_contato));
+  add('INT-04', 'integridade', 'Lead sem empresa', 'Lead', 'Oficial', scL(all, x => x.f.sem_empresa), 'Lead sem empresa associada.', listL(all, x => x.f.sem_empresa));
 
   // ---------- dimensões e DHS ----------
-  const nomes = { acuracia: 'Acurácia', consistencia: 'Consistência entre objetos', completude: 'Completude', unicidade: 'Unicidade', integridade: 'Integridade' };
+  const nomes = { acuracia: 'Acurácia', consistencia: 'Consistência entre objetos', completude: 'Completude', unicidade: 'Duplicidade', integridade: 'Integridade' };
   const dimensoes = Object.keys(PESOS).map(id => {
     const rs = IDP.filter(r => r.dimensao === id && r.nota && r.total_base != null);
     const s = (ok, b) => { const B = rs.reduce((a, r) => a + r[b], 0); return B ? 100 * rs.reduce((a, r) => a + r[ok], 0) / B : 100; };
@@ -232,17 +243,14 @@ export function computeAll(d) {
     return { escopo: esc, media, pior: p, pior_dimensao: pior.nome, final, status };
   });
   const pct = (a, b) => (b ? a / b : null);
-  const objN = L.length + K.length + G.length;
   const saudaveis = {
     empresas_pct: pct(cnt(E, x => x.f.saudavel), E.length), empresas_uso_pct: pct(cnt(E, x => x.uso && x.f.saudavel), cnt(E, x => x.uso)), empresas_n: E.length, empresas_uso_n: cnt(E, x => x.uso),
     contatos_pct: pct(cnt(C, x => x.f.saudavel), C.length), contatos_uso_pct: pct(cnt(C, x => x.uso && x.f.saudavel), cnt(C, x => x.uso)), contatos_n: C.length, contatos_uso_n: cnt(C, x => x.uso),
-    leads_pct: pct(cnt(LD, x => x.f.saudavel), LD.length), leads_abertos_pct: pct(cnt(LD, x => x.f.aberto && x.f.saudavel), cnt(LD, x => x.f.aberto)), leads_n: LD.length,
-    objetos_pct: pct(cnt(L, x => x.f.saudavel) + cnt(K, x => x.f.saudavel) + cnt(G, x => x.f.saudavel), objN), objetos_n: objN,
-    clientes_pct: pct(cnt(L, x => x.f.saudavel), L.length), contratos_pct: pct(cnt(K, x => x.f.saudavel), K.length), grupos_pct: pct(cnt(G, x => x.f.saudavel), G.length)
+    leads_pct: pct(cnt(LD, x => x.f.saudavel), LD.length), leads_abertos_pct: pct(cnt(LD, x => x.f.aberto && x.f.saudavel), cnt(LD, x => x.f.aberto)), leads_n: LD.length, leads_abertos_n: cnt(LD, x => x.f.aberto)
   };
-  // ---------- origens ofensoras ----------
+  // ---------- origens ofensoras (empresas e contatos) ----------
   const origemNome = { CRM_UI: 'UI de CRM', IMPORT: 'Importação', INTEGRATION: 'Integração', FORM: 'Formulários', CRM_SETTING: 'Configuração do CRM', EXTENSION: 'Extensão', EMAIL_INTEGRATION: 'Integração de e-mail', BCC_TO_CRM: 'BCC para o CRM', INTERNAL_PROCESSING: 'Processamento interno', AUTOMATION_PLATFORM: 'Automação da plataforma', API: 'API', MOBILE_IOS: 'App iOS', MOBILE_ANDROID: 'App Android', '(vazio)': 'Sem origem' };
-  const errDim = { acuracia: (x, t) => t === 'E' && x.f.acu, consistencia: (x) => x.f.con, completude: (x) => x.f.com, unicidade: (x, t) => t === 'E' && x.f.dup, integridade: (x, t) => (t === 'E' ? x.f.sem_contato : x.f.intg) };
+  const errDim = { acuracia: (x) => x.f.acu, consistencia: (x) => x.f.con, completude: (x) => x.f.com, unicidade: (x, t) => (t === 'E' ? x.f.dup : x.f.dup_li), integridade: (x, t) => (t === 'E' ? x.f.sem_contato : x.f.sem_empresa) };
   const origens = [];
   for (const [dim, fn] of Object.entries(errDim)) {
     const acc = {};
@@ -251,6 +259,6 @@ export function computeAll(d) {
     const tot = Object.values(acc).reduce((a, b) => a + b, 0);
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
-  const volumes = { empresas: E.length, contatos: C.length, negocios: N.length, leads: LD.length, clientes: L.length, contratos: K.length, grupos: G.length };
+  const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
   return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes }, lists };
 }

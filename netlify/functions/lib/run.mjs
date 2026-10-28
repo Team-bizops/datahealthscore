@@ -2,7 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { hubspot } from './hubspot.mjs';
 import { computeAll } from './rules.mjs';
 import { computeMapa } from './mapa.mjs';
-import { PROPS, OBJ } from './config.mjs';
+import { PROPS } from './config.mjs';
 
 export const store = () => getStore({ name: 'dhs', consistency: 'strong' });
 
@@ -14,28 +14,18 @@ export async function runMedicao() {
     const token = Netlify.env.get('HUBSPOT_TOKEN');
     if (!token) throw new Error('Variável de ambiente HUBSPOT_TOKEN não configurada.');
     const hs = hubspot(token);
-    const gruposObj = Netlify.env.get('GRUPOS_OBJECT') || OBJ.grupos;
-    const types = { companies: 'companies', contacts: 'contacts', deals: 'deals', leads: 'leads', clientes: OBJ.clientes, contratos: OBJ.contratos, grupos: gruposObj };
-    const schema = await hs.schemas();
-    const T = { clientes: (schema[OBJ.clientes] || '').toLowerCase(), contratos: (schema[OBJ.contratos] || '').toLowerCase(), grupos: (schema[gruposObj] || '').toLowerCase(),
-      clientesId: schema[OBJ.clientes] || OBJ.clientes, contratosId: schema[OBJ.contratos] || OBJ.contratos, gruposId: schema[gruposObj] || gruposObj };
+    const types = { companies: 'companies', contacts: 'contacts', leads: 'leads' };
     const P = {}, faltando = [];
     for (const [k, type] of Object.entries(types)) { const r = await hs.resolveProps(type, PROPS[k]); P[k] = r.map; faltando.push(...r.missing); }
     const props = (k) => Object.values(P[k]);
-    const [companies, contacts, deals, leads, clientes, contratos, grupos] = [
-      await hs.listAll('companies', props('companies')),
-      await hs.listAll('contacts', props('contacts'), ['companies']),
-      await hs.listAll('deals', props('deals'), ['companies', 'contacts']),
-      await hs.listAll('leads', props('leads'), ['contacts', 'companies', 'deals']),
-      await hs.listAll(OBJ.clientes, props('clientes'), ['companies', 'contacts', OBJ.contratos]),
-      await hs.listAll(OBJ.contratos, props('contratos'), [OBJ.clientes]),
-      await hs.listAll(gruposObj, props('grupos'), ['companies', 'contacts'])
-    ];
-    const { summary, lists } = computeAll({ companies, contacts, deals, leads, clientes, contratos, grupos, P, T });
+    const companies = await hs.listAll('companies', props('companies'));
+    const contacts = await hs.listAll('contacts', props('contacts'), ['companies']);
+    const leads = await hs.listAll('leads', props('leads'), ['contacts', 'companies']);
+    const { summary, lists } = computeAll({ companies, contacts, leads, P });
     const mp = computeMapa({ companies, contacts, leads, P });
     summary.mapa = mp.mapa; Object.assign(lists, mp.lists);
     const fim = new Date();
-    const out = { ...summary, gerado_em: fim.toISOString(), duracao_s: Math.round((fim - inicio) / 1000), propriedades_faltando: faltando, objeto_grupos: gruposObj };
+    const out = { ...summary, gerado_em: fim.toISOString(), duracao_s: Math.round((fim - inicio) / 1000), propriedades_faltando: faltando };
     for (const [idp, rows] of Object.entries(lists)) await st.setJSON(`lists/${idp}`, rows);
     await st.setJSON('latest', out);
     const dia = fim.toISOString().slice(0, 10);
