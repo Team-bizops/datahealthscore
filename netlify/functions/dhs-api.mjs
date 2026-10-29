@@ -23,9 +23,15 @@ export default async (req) => {
     if (!/^[A-Z]{3}-\d{2}(\.\d)?$/.test(idp)) return json({ erro: 'IDP inválido' }, 400);
     const sit = url.searchParams.get('situacao') === 'ok' ? false : true;
     const uso = url.searchParams.get('escopo') === 'uso';
-    const rows = (await st.get(`lists/${idp}`, { type: 'json' })) || [];
-    const f = rows.filter(r => r._erro === sit && (!uso || r._uso)).slice(0, 10000).map(({ _erro, _uso, ...r }) => r);
-    return json({ total: rows.filter(r => r._erro === sit && (!uso || r._uso)).length, rows: f });
+    let rows;
+    const ix = await st.get(`idx/${idp}`, { type: 'json' });
+    if (ix) {
+      const tab = (await st.get(`tab/${ix.t}`, { type: 'json' })) || [];
+      const err = new Set(ix.e);
+      rows = ix.b.map(i => ({ ...tab[i], _erro: err.has(i) }));
+    } else rows = (await st.get(`lists/${idp}`, { type: 'json' })) || [];
+    const sel = rows.filter(r => r._erro === sit && (!uso || r._uso));
+    return json({ total: sel.length, rows: sel.slice(0, 10000).map(({ _erro, _uso, ...r }) => r) });
   }
   if (rota === 'run' && req.method === 'POST') {
     const s = await st.get('status', { type: 'json' });
