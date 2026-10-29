@@ -21,12 +21,14 @@ export async function runMedicao() {
     const companies = await hs.listAll('companies', props('companies'));
     const contacts = await hs.listAll('contacts', props('contacts'), ['companies']);
     const leads = await hs.listAll('leads', props('leads'), ['contacts', 'companies']);
-    const { summary, lists } = computeAll({ companies, contacts, leads, P });
+    const { summary, lists, tabelas } = computeAll({ companies, contacts, leads, P });
     const mp = computeMapa({ companies, contacts, leads, P });
-    summary.mapa = mp.mapa; Object.assign(lists, mp.lists);
+    summary.mapa = mp.mapa;
     const fim = new Date();
     const out = { ...summary, gerado_em: fim.toISOString(), duracao_s: Math.round((fim - inicio) / 1000), propriedades_faltando: faltando };
-    for (const [idp, rows] of Object.entries(lists)) await st.setJSON(`lists/${idp}`, rows);
+    for (const [t, rows] of Object.entries(tabelas)) await st.setJSON(`tab/${t}`, rows);
+    for (const [idp, ix] of Object.entries(lists)) await st.setJSON(`idx/${idp}`, ix);
+    for (const [idp, rows] of Object.entries(mp.lists)) await st.setJSON(`lists/${idp}`, rows);
     await st.setJSON('latest', out);
     const dia = fim.toISOString().slice(0, 10);
     await st.setJSON(`history/${dia}`, { data: dia, gerado_em: out.gerado_em, dhs: out.dhs, dimensoes: out.dimensoes.map(d => ({ dimensao: d.dimensao, nome: d.nome, total: d.total, uso: d.uso })) });

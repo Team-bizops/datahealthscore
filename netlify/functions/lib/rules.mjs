@@ -180,9 +180,17 @@ export function computeAll(d) {
       uso_base: s ? s.ub : null, uso: s ? s.ue : null, uso_ok: s ? s.ub - s.ue : null, uso_pct: s && s.ub ? s.ue / s.ub : null });
     if (lista) lists[idp] = lista;
   };
-  const listE = (base, err) => E.filter(base).map(x => ({ ...x.row, _erro: !!err(x), _uso: x.uso }));
-  const listC = (base, err) => C.filter(base).map(x => ({ ...x.row, _erro: !!err(x), _uso: x.uso }));
-  const listL = (base, err, cols) => LD.filter(base).map(x => ({ record_id: x.id, nome: x.nome, pipeline: x.pipeline, ...Object.fromEntries((cols || []).map(k => [k, x[k]])), link_hubspot: link('0-136', x.id), _erro: !!err(x), _uso: x.f.aberto }));
+  // Listas compactas: uma tabela por objeto (gravada uma vez) + índices de cada IDP
+  const TAB = {
+    E: E.map(x => ({ ...x.row, _uso: x.uso })),
+    C: C.map(x => ({ ...x.row, _uso: x.uso })),
+    L: LD.map(x => ({ record_id: x.id, nome: x.nome, pipeline: x.pipeline, email_lead: x.email_lead, email_contato: x.email_contato, cargo_lead: x.cargo_lead, cargo_contato: x.cargo_contato,
+      tel_lead: x.tel_lead, tel_contato: x.tel_contato, link_hubspot: link('0-136', x.id), _uso: x.f.aberto }))
+  };
+  const idx = (t, arr, base, err) => { const b = [], e = []; arr.forEach((x, i) => { if (base(x)) { b.push(i); if (err(x)) e.push(i); } }); return { t, b, e }; };
+  const listE = (base, err) => idx('E', E, base, err);
+  const listC = (base, err) => idx('C', C, base, err);
+  const listL = (base, err) => idx('L', LD, base, err);
   const pE = (k) => [x => x.f[k + '_base'], x => x.f[k + '_err']];
   const pC = (k, e = '_err') => [x => x.f[k + '_base'], x => x.f[k + e]];
 
@@ -260,5 +268,5 @@ export function computeAll(d) {
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
   const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
-  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes }, lists };
+  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes }, lists, tabelas: TAB };
 }
