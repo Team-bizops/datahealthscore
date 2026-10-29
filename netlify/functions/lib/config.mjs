@@ -2,6 +2,7 @@
 // Propriedades com mais de um candidato: a rotina usa a primeira que existir no HubSpot.
 export const PORTAL = '44530090';
 
+// Escopo do score: Empresas, Contatos e Leads (SDRs e Executivos).
 export const PESOS = { acuracia: 0.25, consistencia: 0.25, completude: 0.20, unicidade: 0.15, integridade: 0.15 };
 
 export const LEAD_PIPELINES = ['739923376', '916004981']; // SDRs, Executivos
@@ -31,7 +32,6 @@ export const PROPS = {
   contacts: {
     nome: ['firstname'], sobrenome: ['lastname'], email: ['email'], empresa: ['company'], cargo: ['cargo', 'jobtitle'],
     area_poc: ['area_do_poc'], origem: ['hs_object_source'], n_negocios: ['num_associated_deals'],
-    mql: ['hs_lifecyclestage_marketingqualifiedlead_date'],
     jobtitle: ['jobtitle'], seniority: ['hs_seniority'], role: ['hs_role'], subrole: ['hs_sub_role'], linkedin: ['linkedin'], linkedin_alt: ['hs_linkedin_url'],
     telefone: ['phone'], celular: ['mobilephone']
   },

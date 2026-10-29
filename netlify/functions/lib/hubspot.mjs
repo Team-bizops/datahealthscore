@@ -5,9 +5,9 @@ export function hubspot(token) {
   let last = 0;
   async function req(path, opts = {}) {
     for (let attempt = 0; attempt < 7; attempt++) {
-      const wait = Math.max(0, last + 115 - Date.now());
-      if (wait) await sleep(wait);
-      last = Date.now();
+      const slot = Math.max(Date.now(), last + 105);
+      last = slot;
+      if (slot > Date.now()) await sleep(slot - Date.now());
       const r = await fetch(BASE + path, { ...opts, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
       if (r.status === 429 || r.status >= 500) { const ra = Number(r.headers.get('retry-after')) || 2; await sleep(ra * 1000 * (attempt + 1)); continue; }
       if (!r.ok) throw new Error(`HubSpot ${r.status} em ${path.split('?')[0]}: ${(await r.text()).slice(0, 300)}`);
