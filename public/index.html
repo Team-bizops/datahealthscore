@@ -164,6 +164,12 @@ body{margin:0;background:#f6f8fc}
 .dhs table.dtable tr.clk td.ok{color:var(--mint-ink)}
 .dhs table.dtable tr.fora td{color:var(--text-soft)}
 .dhs .st-tag{display:inline-block;font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.dhs .qbar{display:flex;height:14px;border-radius:999px;overflow:hidden;margin:10px 0 8px;background:var(--slate-soft)}
+.dhs .qbar button{border:none;padding:0;cursor:pointer;height:100%}
+.dhs .qleg{display:flex;flex-direction:column;gap:4px;font-size:.8rem}
+.dhs .qleg button{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:3px 6px;border-radius:6px}
+.dhs .qleg button:hover{background:var(--accent-soft)}
+.dhs .qleg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px}
 .dhs .objline{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 12px}
 .dhs .objpill{font-size:.8rem;padding:5px 10px;border-radius:8px;background:var(--danger-soft);color:var(--danger-ink)}
 .dhs .objpill b{margin-right:4px}
@@ -193,7 +199,7 @@ body{margin:0;background:#f6f8fc}
 </head><body>
 <div class="dhs">
   <div class="topbar"><div class="wrap topbar-in">
-    <div class="brand"><strong>Data Health Score</strong><span>BizOps · direto do HubSpot</span></div>
+    <div class="brand"><strong>Data Health Score <span style="font-size:.7rem;background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;vertical-align:middle">DHS 2.0</span></strong><span>BizOps · direto do HubSpot</span></div>
     <span class="pill">Atualizado: <b id="atualizado">—</b></span>
     <span class="pill" id="statuspill">—</span>
     <span class="pill"><button id="btn-run" type="button">Atualizar agora</button></span>
@@ -223,20 +229,12 @@ body{margin:0;background:#f6f8fc}
       </div>
     </div>
 
-    <div class="kpi-grid" id="headline">
-      <div class="kpi"><div class="kpi-top"><span class="kpi-label">Empresas 100% saudáveis</span><span class="info-ic" tabindex="0" data-info="sau_empresas">i</span></div>
-        <span class="kpi-value" data-k="sau.empresas_pct">—</span>
-        <div class="tags"><span class="tag">Em uso <span data-k="sau.empresas_uso_pct">—</span></span></div>
-        <span class="kpi-sub">de <span data-k="sau.empresas_n">—</span> empresas</span></div>
-      <div class="kpi"><div class="kpi-top"><span class="kpi-label">Contatos 100% saudáveis</span><span class="info-ic" tabindex="0" data-info="sau_contatos">i</span></div>
-        <span class="kpi-value" data-k="sau.contatos_pct">—</span>
-        <div class="tags"><span class="tag">Em uso <span data-k="sau.contatos_uso_pct">—</span></span></div>
-        <span class="kpi-sub">de <span data-k="sau.contatos_n">—</span> contatos</span></div>
-      <div class="kpi"><div class="kpi-top"><span class="kpi-label">Leads 100% saudáveis</span><span class="info-ic" tabindex="0" data-info="sau_leads">i</span></div>
-        <span class="kpi-value" data-k="sau.leads_pct">—</span>
-        <div class="tags"><span class="tag">Abertos <span data-k="sau.leads_abertos_pct">—</span></span></div>
-        <span class="kpi-sub">de <span data-k="sau.leads_n">—</span> leads · SDRs e Executivos</span></div>
-          </div>
+    <section class="section" id="qualidade" style="padding-top:20px">
+      <div class="section-head"><h2>Qualidade dos registros por objeto</h2><span class="info-ic" tabindex="0" data-info="qualidade">i</span></div>
+      <p class="section-sub">Quantos registros estão sem nenhum problema, com um problema ou com dois ou mais. Clique numa faixa para ver os registros e os problemas de cada um.</p>
+      <div class="kpi-grid" id="headline"></div>
+      <div class="qslot"></div>
+    </section>
 
     <section class="section" id="dimensoes">
       <div class="section-head"><h2>Notas por dimensão</h2><span class="info-ic" tabindex="0" data-info="impacto">i</span></div>
@@ -292,8 +290,8 @@ body{margin:0;background:#f6f8fc}
         <ol>
           <li><b>Escopo:</b> Empresas, Contatos e Leads (pipelines SDRs e Executivos), exceto registros internos da RankMyApp. Objetos personalizados, contratos e processos comerciais ficam no HubScore e nas monitorias operacionais. A tag roxa repete o cálculo só para os registros em uso.</li>
           <li><b>Em uso:</b> empresa com negócio, cliente ou lead aberto; contato com negócio, associado a lead ou que já foi MQL; lead aberto.</li>
-          <li><b>Nota da dimensão:</b> % de registros (empresas, contatos e leads) sem nenhum problema na dimensão. Cada registro conta uma vez, mesmo que falhe em mais de uma regra. Entram as regras com status Oficial e Em validação.</li>
-          <li><b>DHS:</b> Acurácia 25% · Consistência 25% · Completude 20% · Duplicidade 15% · Integridade 15%. Se a pior dimensão ficar abaixo de 70, o DHS vira 85% da média + 15% da pior; abaixo de 50, 70% + 30%.</li>
+          <li><b>Nota da dimensão (DHS 2.0):</b> cada objeto recebe a nota % de registros sem nenhum erro na dimensão (cada registro conta uma vez). A dimensão é a média dos objetos, pesada pelo nº de regras de cada um, com teto de 70% por objeto.</li>
+          <li><b>DHS:</b> Acurácia 25% · Consistência 25% · Completude 20% · Duplicidade 15% · Integridade 15%, sem penalidade pela pior dimensão. A partir de 30/10/2026 a metodologia mudou (DHS 2.0): medições anteriores não são comparáveis.</li>
           <li><b>Faixas:</b> até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.</li>
           <li><b>Fora da nota:</b> regras em Monitoramento e Pendente e as linhas de Detalhe. Higiene, pipeline, contratos e dono do registro não fazem parte do score.</li>
         </ol>
@@ -303,10 +301,11 @@ body{margin:0;background:#f6f8fc}
 </div>
 <script>
 window.DHS_INFO = {
+  qualidade: {t:'Qualidade dos registros por objeto', p:[['O que é','Para cada empresa, contato e lead, quantas regras da nota ele descumpre: nenhuma, uma, ou duas ou mais.'],['Diferente da nota','A nota da dimensão olha um tipo de problema por vez. Aqui o registro só aparece como "sem problemas" se passar em todas as regras de todas as dimensões.']]},
   sau_empresas: {t:'Empresas 100% saudáveis', p:[['O que é','% de empresas que não falham em nenhuma regra da nota: acurácia, campos, duplicidade e contato associado.'],['Tag roxa','O mesmo cálculo só para as empresas em uso (negócio, cliente ou lead aberto).']]},
   sau_contatos: {t:'Contatos 100% saudáveis', p:[['O que é','% de contatos que não falham em nenhuma regra da nota: acurácia, consistência, campos, LinkedIn duplicado e empresa associada.'],['Tag roxa','O mesmo cálculo só para os contatos em uso (negócio, lead ou já foi MQL).']]},
   sau_leads: {t:'Leads 100% saudáveis', p:[['O que é','% de leads dos pipelines SDRs e Executivos sem erro: contato e empresa associados, origem preenchida, dados iguais aos do contato e sem lead aberto duplicado.'],['Tag','O mesmo cálculo só para os leads abertos.']]},
-  gauge: {t:'Score da base de dados', p:[['O que é','O Data Health Score da base inteira do HubSpot, de 0 a 100. A tag roxa mostra o mesmo cálculo só para os registros em uso.'],['Como é calculado','Para cada dimensão: verificações aprovadas ÷ verificações feitas. Depois, soma de peso × nota. Se a pior dimensão ficar abaixo de 70, o DHS vira 85% da média + 15% da pior; abaixo de 50, 70% + 30%.'],['Faixas','Até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.']]},
+  gauge: {t:'Data Health Score 2.0', p:[['O que é','Nota de saúde da base de Empresas, Contatos e Leads do HubSpot, de 0 a 100. A tag roxa mostra o mesmo cálculo só para os registros em uso.'],['Cálculo','Em cada dimensão, cada objeto recebe a nota % de registros sem erro. A nota da dimensão é a média dos objetos, pesada pelo nº de regras de cada objeto (nenhum objeto passa de 70%). O DHS é a soma de peso × nota das dimensões, sem penalidade extra.'],['Faixas','Até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.']]},
   radar: {t:'Score por dimensão', p:[['Como ler','Cada eixo é a nota de uma dimensão de 0 a 100. A área preenchida é a base inteira; a linha tracejada roxa são os registros em uso.']]},
   impacto: {t:'Peso e impacto', p:[['Peso','Quanto a dimensão vale no DHS.'],['Impacto','Pontos que a dimensão tira do DHS: peso × (100 − nota). Mostra onde corrigir rende mais.']]},
   origens: {t:'Top 3 origens ofensoras', p:[['O que é','As 3 origens de criação do registro (Record source do HubSpot) que concentram mais erros de empresas e contatos em cada dimensão, na base inteira.']]},
@@ -314,32 +313,33 @@ window.DHS_INFO = {
   saudaveis: {t:'Registros 100% saudáveis', p:[['O que é','% de empresas e de contatos que não falham em nenhuma regra que entra na nota.'],['Como ler','É a leitura mais dura: um único erro tira o registro da conta.']]},
   uso: {t:'Registros em uso', p:[['Empresa em uso','Tem negócio, é cliente ou tem lead aberto.'],['Contato em uso','Tem negócio, está associado a um lead ou já foi MQL.'],['Para que serve','A nota é da base inteira. A tag roxa mostra quanto do problema está nos registros que o time usa hoje.']]},
   registros: {t:'Avaliados, corretos e com erro', p:[['Avaliados','Registros em que a regra se aplica. Ex.: porte × funcionários só avalia empresas com os dois campos preenchidos.'],['Corretos','Avaliados que passam na regra.'],['Com erro','Avaliados que falham na regra.'],['Status','Oficial entra na nota. Em validação entra na nota, mas a regra ainda será conferida com amostra. Detalhe, Monitoramento e Pendente ficam fora da nota.'],['Lista','Clique na linha para ver os registros, abrir no HubSpot ou baixar o CSV.']]},
-  acuracia: {t:'Acurácia · peso 25%', p:[['Pergunta','O valor preenchido está certo?'],['Regras','Empresa: porte × nº de funcionários, CNPJ (dígito verificador), país × country do Breeze, domínio × site e segmento × indústria do Breeze. Contato: LinkedIn × LinkedIn do Breeze.'],['Nota','% de registros sem nenhum erro de acurácia, entre os que têm algo para checar. Cada registro conta uma vez.']]},
-  consistencia: {t:'Consistência entre objetos · peso 25%', p:[['Pergunta','A mesma informação bate entre Empresas, Contatos e Leads?'],['Regras','Contato: domínio do e-mail × empresa associada e campo Empresa (texto) × empresa associada. Lead: e-mail, cargo, telefone e empresa do lead × os do contato associado.'],['Nota','% de registros sem nenhuma divergência. Cada registro conta uma vez.']]},
-  completude: {t:'Completude · peso 20%', p:[['Pergunta','Os campos necessários estão preenchidos?'],['Regras','Empresa: nº de funcionários, abrangência, país, segmento, porte e domínio. Contato: cargo, área do POC e LinkedIn. Lead: origem e, nos SDRs, fonte de entrada. O registro conta como erro se faltar qualquer campo.'],['Detalhe','As linhas com ↳ mostram cada campo vazio; ajudam a priorizar e não entram na nota.']]},
-  unicidade: {t:'Duplicidade · peso 15%', p:[['Pergunta','Existe um registro por entidade?'],['Regras','Empresas: mesmo domínio, mesmo domínio raiz ou mesmo nome. Contatos: mesmo LinkedIn.'],['Nota','% de registros que não têm cópia. Uma empresa duplicada conta uma vez, mesmo que apareça em mais de uma regra.'],['Lista','Mostra todos os registros de cada grupo juntos (ex.: os 10 Santander) para comparar e mesclar.']]},
-  integridade: {t:'Integridade · peso 15%', p:[['Pergunta','Os registros estão conectados como deveriam?'],['Regras','Empresa sem contato, contato sem empresa e lead sem contato ou sem empresa.'],['Nota','% de registros sem nenhum problema de associação. Cada registro conta uma vez.']]}
+  acuracia: {t:'Acurácia · peso 25%', p:[['Pergunta','O valor preenchido está certo?'],['Regras','Empresa (5): porte × nº de funcionários, CNPJ, país × Breeze, domínio × site, segmento × indústria do Breeze. Contato (1): LinkedIn × Breeze.'],['Peso dos objetos','Empresas 70% (teto) · Contatos 30%.']]},
+  consistencia: {t:'Consistência entre objetos · peso 25%', p:[['Pergunta','A mesma informação bate entre Empresas, Contatos, Leads e Negócios?'],['Regras','Empresa (3): nome × contatos, empresa dos leads × contatos, lifecycle × contatos. Contato (2): e-mail × empresa, campo Empresa × empresa. Lead (4): telefone e empresa × contato; Operação e Intenção de compra × negócio (só leads agendados).'],['Peso dos objetos','Pelo nº de regras: Empresas 3, Contatos 2, Leads 4.']]},
+  completude: {t:'Completude · peso 20%', p:[['Pergunta','Os campos necessários estão preenchidos?'],['Regras','Empresa (7): nome, porte, segmento, país, abrangência, domínio e CNPJ (só Cliente). Contato (5): nome, e-mail, hierarquia do cargo, área do POC e LinkedIn. Lead (3): origem e, nos agendados, Operação e Intenção de compra.'],['Peso dos objetos','Pelo nº de campos: Empresas 7, Contatos 5, Leads 3.'],['Detalhe','As linhas com ↳ mostram cada campo vazio e não entram na nota.']]},
+  unicidade: {t:'Duplicidade · peso 15%', p:[['Pergunta','Existe um registro por entidade?'],['Regras','Empresa (3): mesmo domínio, mesmo domínio raiz, mesmo nome. Contato (1): mesmo LinkedIn.'],['Nota','% de registros sem cópia; uma empresa duplicada conta uma vez na nota do objeto.'],['Peso dos objetos','Empresas 70% (teto) · Contatos 30%.']]},
+  integridade: {t:'Integridade · peso 15%', p:[['Pergunta','Os registros estão conectados?'],['Regras','Empresa (1): sem contato. Contato (1): sem empresa. Lead (2): sem contato, sem empresa. INT-05 (lead agendado sem negócio) é só monitoramento.'],['Peso dos objetos','Empresas 25% · Contatos 25% · Leads 50%.']]}
 };
 window.DHS_DIMS = [
   {id:'acuracia', nome:'Acurácia', peso:0.25, pergunta:'O valor preenchido está certo?',
    acoes:['Criar workflow que recalcula o porte pelo nº de funcionários (ACU-01).',
           'Corrigir CNPJs inválidos e validar o CNPJ no formulário (ACU-02).',
-          'Revisar as divergências com o Breeze (país, site, LinkedIn e segmento) pela lista, que mostra os dois valores (ACU-03, ACU-04, ACU-08 e ACU-09).']},
+          'Revisar as divergências com o Breeze (país, site, LinkedIn e segmento) pela lista, que mostra os dois valores (ACU-03 a ACU-06).']},
   {id:'consistencia', nome:'Consistência entre objetos', peso:0.25, pergunta:'A mesma informação bate entre Empresas, Contatos e Leads?',
    acoes:['Revisar a associação de contatos com e-mail ou campo Empresa diferente da empresa associada, começando pelos importados (CON-01 e CON-02).',
-          'Sincronizar e-mail, cargo e telefone do lead com o contato, de preferência por workflow (CON-03 a CON-05).',
-          'Associar o lead à mesma empresa do contato (CON-06).']},
+          'Sincronizar telefone e empresa do lead com o contato (CON-03 e CON-04) e Operação/Intenção de compra com o negócio (CON-08 e CON-09).',
+          'Revisar empresas com nome, leads ou lifecycle divergentes dos contatos (CON-05 a CON-07).']},
   {id:'completude', nome:'Completude', peso:0.20, pergunta:'Os campos necessários estão preenchidos?',
    acoes:['Copiar para a propriedade oficial os dados que já existem em outra propriedade (veja o Mapa de campos).',
-          'Enriquecer nº de funcionários, país e abrangência, começando pelas empresas em uso (COM-01).',
-          'Tornar cargo, área do POC e origem obrigatórios em formulários, importação e criação de lead (COM-02 e COM-03).']},
+          'Enriquecer porte, país e abrangência e cadastrar o CNPJ das empresas Cliente (COM-01).',
+          'Tornar nome, e-mail, hierarquia do cargo e área do POC obrigatórios no contato, e Operação e Intenção de compra obrigatórias ao agendar (COM-02 e COM-03).']},
   {id:'unicidade', nome:'Duplicidade', peso:0.15, pergunta:'Existe um registro por entidade?',
    acoes:['Mesclar empresas com o mesmo domínio e depois revisar domínio raiz e nome (UNI-01 a UNI-03).',
           'Mesclar contatos com o mesmo LinkedIn (UNI-04).']},
   {id:'integridade', nome:'Integridade', peso:0.15, pergunta:'Os registros estão conectados como deveriam?',
    acoes:['Associar contatos às empresas pelo domínio do e-mail (INT-02).',
           'Associar contato e empresa aos leads sem vínculo (INT-03 e INT-04).',
-          'Associar contatos às empresas sem contato ou arquivá-las (INT-01).']}
+          'Associar contatos às empresas sem contato ou arquivá-las (INT-01).',
+          'SDRs e executivos criarem ou associarem o negócio dos leads agendados (INT-05, monitoramento).']}
 ];
 
 </script>
@@ -508,7 +508,7 @@ window.DHS_DIMS = [
       const ol = document.querySelector(`#dim-${d.id} .objline`); ol.innerHTML = '';
       (r.objetos || []).forEach(o => { const s = document.createElement('span'); s.className = 'objpill';
         const b = document.createElement('b'); b.textContent = o.objeto; s.appendChild(b);
-        s.appendChild(document.createTextNode(` ${nint(o.com_erro)} de ${nint(o.avaliados)} com problema · ${pct(o.avaliados ? o.com_erro / o.avaliados : 0)}`)); ol.appendChild(s); });
+        s.appendChild(document.createTextNode(` · peso ${o.peso != null ? Math.round(100 * o.peso) + '%' : '—'} · nota ${nf1(o.nota)} · ${nint(o.com_erro)} de ${nint(o.avaliados)} com problema`)); ol.appendChild(s); });
       const body = document.querySelector(`#dim-${d.id} tbody`); body.innerHTML = '';
       DATA.idps.filter(x => x.dimensao === d.id).forEach(x => {
         const tr = document.createElement('tr'); tr.dataset.key = x.idp;
@@ -525,7 +525,7 @@ window.DHS_DIMS = [
   };
 
   // ---------- listas ----------
-  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', qtd_no_grupo: 'Registros no grupo', industria_breeze: 'Indústria (Breeze)', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
+  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', problemas: 'Regras descumpridas', email_tipo: 'Tipo de e-mail', operacao_lead: 'Operação do lead', operacao_negocio: 'Operação do negócio', intencao_lead: 'Intenção do lead', intencao_negocio: 'Intenção do negócio', qtd_no_grupo: 'Registros no grupo', industria_breeze: 'Indústria (Breeze)', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
   const LST = {idp: null, regra: '', sit: 'erro', esc: 'total', q: '', rows: [], total: 0, panel: null, objeto: false};
   const panel = () => {
     if (LST.panel) return LST.panel;
@@ -598,8 +598,36 @@ window.DHS_DIMS = [
     checarStatus();
   });
 
+  const abrirQual = (id, titulo) => {
+    const p = panel(); LST.idp = id; LST.regra = titulo; LST.sit = 'erro'; LST.esc = 'total'; LST.q = ''; LST.objeto = false;
+    p.querySelector('.search').value = ''; document.querySelector('#qualidade .qslot').appendChild(p);
+    root.querySelectorAll('tr.sel').forEach(t => t.classList.remove('sel'));
+    carregar(); p.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  };
+  const drawQualidade = () => {
+    const box = document.getElementById('headline'); box.innerHTML = '';
+    const Q = DATA.saudaveis && DATA.saudaveis.qualidade; if (!Q) return;
+    [['E', 'Empresas', 'Em uso'], ['C', 'Contatos', 'Em uso'], ['L', 'Leads', 'Abertos']].forEach(([t, nome, tagU]) => {
+      const q = Q[t]; if (!q || !q.n) return;
+      const card = document.createElement('div'); card.className = 'kpi';
+      card.innerHTML = `<div class="kpi-top"><span class="kpi-label"></span></div><span class="kpi-value"></span><span class="kpi-sub"></span><div class="tags"><span class="tag"></span></div><div class="qbar"></div><div class="qleg"></div>`;
+      card.querySelector('.kpi-label').textContent = nome;
+      card.querySelector('.kpi-value').textContent = pct(q.zero / q.n);
+      card.querySelector('.kpi-sub').textContent = `sem nenhum problema · de ${nint(q.n)} registros`;
+      card.querySelector('.tag').textContent = `${tagU} ${pct(q.n_uso ? q.zero_uso / q.n_uso : null)}`;
+      [['0', 'Sem problemas', q.zero, 'var(--mint)'], ['1', 'Com 1 problema', q.um, 'var(--warn)'], ['2', 'Com 2 ou mais', q.dois, 'var(--danger)']].forEach(([k, rot, n, cor]) => {
+        const id = `QL${t}-0${k}`, titulo = `${nome} · ${rot}`;
+        const b = document.createElement('button'); b.style.width = (100 * n / q.n) + '%'; b.style.background = cor; b.title = `${rot}: ${nint(n)}`; b.addEventListener('click', () => abrirQual(id, titulo));
+        card.querySelector('.qbar').appendChild(b);
+        const l = document.createElement('button'); const sp = document.createElement('span'); const i = document.createElement('i'); i.style.background = cor; sp.appendChild(i); sp.appendChild(document.createTextNode(rot));
+        const bb = document.createElement('b'); bb.textContent = `${nint(n)} · ${pct(n / q.n)}`; l.appendChild(sp); l.appendChild(bb); l.addEventListener('click', () => abrirQual(id, titulo));
+        card.querySelector('.qleg').appendChild(l);
+      });
+      box.appendChild(card);
+    });
+  };
   const render = () => {
-    fill(); drawGauge(); drawRadar(); drawTabelas(); drawOrigens();
+    fill(); drawQualidade(); drawGauge(); drawRadar(); drawTabelas(); drawOrigens();
     const t = DATA.dhs.find(x => x.escopo === 'total'), u = DATA.dhs.find(x => x.escopo === 'uso');
     document.getElementById('takeaway').textContent = `O DHS da base inteira está em ${nf1(t.final)} (${t.status}) e o dos registros em uso em ${nf1(u.final)}. A dimensão mais fraca é ${t.pior_dimensao}, com ${nf1(t.pior)}.`;
     const dt = new Date(DATA.gerado_em); document.getElementById('atualizado').textContent = dt.toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'});

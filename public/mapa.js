@@ -2,7 +2,7 @@
 (() => {
   const nint = (v) => v == null ? '—' : Number(v).toLocaleString('pt-BR');
   const pct = (a, b) => b ? (100 * a / b).toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%' : '—';
-  const HEAD = {record_id: 'Record ID', nome: 'Nome', propriedade_oficial: 'Propriedade oficial', propriedade_com_valor: 'Propriedade com o valor', valor_encontrado: 'Valor encontrado', link_hubspot: 'HubSpot'};
+  const HEAD = {record_id: 'Record ID', nome: 'Nome', email: 'E-mail', tipo: 'Tipo', propriedade_oficial: 'Propriedade oficial', propriedade_com_valor: 'Propriedade com o valor', valor_encontrado: 'Valor encontrado', link_hubspot: 'HubSpot'};
   const css = document.createElement('style');
   css.textContent = `.dhs .mbar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--slate-soft);min-width:140px}
   .dhs .mbar span{display:block;height:100%}
@@ -67,7 +67,15 @@
       if (m.objeto !== grupo) { grupo = m.objeto; const g = document.createElement('tr'); g.className = 'mgrp'; const td = document.createElement('td'); td.colSpan = 7; td.textContent = `${grupo} · ${nint(m.total)} registros`; g.appendChild(td); tb.appendChild(g); }
       const tr = document.createElement('tr');
       const cell = (t, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; if (t instanceof Node) td.appendChild(t); else td.textContent = t; tr.appendChild(td); return td; };
-      cell(m.informacao); cell(m.oficial, 'como'); cell(m.alternativas.length ? m.alternativas.join(', ') : '—', 'como');
+      const ci = cell(m.informacao); if (m.nota) { const sm = document.createElement('div'); sm.className = 'como'; sm.style.fontSize = '.72rem'; sm.textContent = m.nota; ci.appendChild(sm); } cell(m.oficial, 'como'); cell(m.alternativas.length ? m.alternativas.join(', ') : '—', 'como');
+      if (m.tipo === 'categorias') {
+        const cor = {ok: C_OK, alt: C_ALT, vazio: C_VZ};
+        const bar2 = document.createElement('div'); bar2.className = 'mbar';
+        m.categorias.forEach(c => { const sp = document.createElement('span'); sp.style.width = (m.total ? 100 * c.n / m.total : 0) + '%'; sp.style.background = cor[c.cor]; sp.title = `${c.rotulo}: ${nint(c.n)}`; bar2.appendChild(sp); });
+        cell(bar2);
+        m.categorias.forEach(c => { const b = document.createElement('button'); b.className = 'mlink'; b.type = 'button'; b.textContent = `${c.rotulo}: ${nint(c.n)} · ${pct(c.n, m.total)}`; b.disabled = !c.n; b.addEventListener('click', () => abrir(c.lista, `${m.objeto} · E-mail ${c.rotulo.toLowerCase()}`)); cell(b, 'num'); });
+        tb.appendChild(tr); return;
+      }
       const bar = document.createElement('div'); bar.className = 'mbar';
       [[m.preenchido, C_OK], [m.na_alternativa, C_ALT], [m.vazio_tudo, C_VZ]].forEach(([v, c]) => { const s = document.createElement('span'); s.style.width = (m.total ? 100 * v / m.total : 0) + '%'; s.style.background = c; s.title = `${nint(v)} (${pct(v, m.total)})`; bar.appendChild(s); });
       cell(bar);
