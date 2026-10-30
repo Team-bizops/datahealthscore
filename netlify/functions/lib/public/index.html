@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Data Health Score · BizOps</title><link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🩺</text></svg>">
+<style>
+body{margin:0;background:#f6f8fc}
+@media (prefers-color-scheme: dark){body{background:#0b1220}}
+.dhs{border-radius:0}
+.dhs .topbar{border-radius:0}
+.dhs .pill button{all:unset;cursor:pointer;font-weight:800;color:#fff}
+.dhs .warnbox{margin-top:16px;padding:12px 14px;border-radius:12px;background:var(--warn-soft);color:var(--warn-ink);font-size:.84rem}
+.dhs .dash-skeleton{color:transparent;background:var(--slate-soft);border-radius:6px}
+.dhs{
+  --navy:#00132c; --navy-line:rgba(255,255,255,.09);
+  --bg:#f6f8fc; --card:#ffffff; --border:#e7eaf3;
+  --text:#0b1220; --text-muted:#5b6b85; --text-soft:#8b97ac;
+  --accent:#5b5fef; --accent-soft:#eeedfd;
+  --mint:#0fb894; --mint-soft:#e4f9f2; --mint-ink:#0a8468;
+  --warn:#d97706; --warn-soft:#fef3e2; --warn-ink:#92570a;
+  --danger:#dc2626; --danger-soft:#fdeaea; --danger-ink:#a32424;
+  --slate:#64748b; --slate-soft:#eef1f6;
+  --radius:16px;
+  --shadow:0 1px 2px rgba(10,20,45,.04), 0 10px 28px -14px rgba(10,20,45,.14);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --font-head:'Manrope','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .dhs{
+    --navy:#050b18; --navy-line:rgba(255,255,255,.1);
+    --bg:#0b1220; --card:#121b2e; --border:#223049;
+    --text:#e8ecf5; --text-muted:#9aa7c0; --text-soft:#6c7a98;
+    --accent:#8285ff; --accent-soft:#232452;
+    --mint:#2dd4ac; --mint-soft:#0f3630; --mint-ink:#2dd4ac;
+    --warn:#f0a93e; --warn-soft:#3a2a10; --warn-ink:#f0a93e;
+    --danger:#f36565; --danger-soft:#3a1616; --danger-ink:#f36565;
+    --slate:#8291ab; --slate-soft:#1a2439;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"] .dhs{
+  --navy:#050b18; --navy-line:rgba(255,255,255,.1);
+  --bg:#0b1220; --card:#121b2e; --border:#223049;
+  --text:#e8ecf5; --text-muted:#9aa7c0; --text-soft:#6c7a98;
+  --accent:#8285ff; --accent-soft:#232452;
+  --mint:#2dd4ac; --mint-soft:#0f3630; --mint-ink:#2dd4ac;
+  --warn:#f0a93e; --warn-soft:#3a2a10; --warn-ink:#f0a93e;
+  --danger:#f36565; --danger-soft:#3a1616; --danger-ink:#f36565;
+  --slate:#8291ab; --slate-soft:#1a2439;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.5);
+}
+.dhs{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.55;border-radius:var(--radius);overflow:visible;padding-bottom:24px}
+.dhs *{box-sizing:border-box}
+.dhs h1,.dhs h2,.dhs h3,.dhs h4{font-family:var(--font-head);font-weight:800;line-height:1.25;margin:0;letter-spacing:-.02em}
+.dhs p{margin:0}
+.dhs .wrap{max-width:1320px;margin:0 auto;padding:0 20px}
+.dhs .topbar{background:var(--navy);color:#fff;border-radius:var(--radius) var(--radius) 0 0}
+.dhs .topbar-in{display:flex;align-items:center;gap:16px;padding:16px 0;flex-wrap:wrap}
+.dhs .brand{display:flex;flex-direction:column;margin-right:auto}
+.dhs .brand strong{font-family:var(--font-head);font-size:1.2rem;font-weight:800}
+.dhs .brand span{font-size:.74rem;color:rgba(255,255,255,.62);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.dhs .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid var(--navy-line);border-radius:999px;padding:6px 12px;font-size:.8rem;font-weight:600;color:rgba(255,255,255,.85)}
+.dhs .pill b{color:#fff}
+.dhs .lead{color:var(--text-muted);font-size:.9rem;margin-top:20px}
+.dhs .lead b{color:var(--text)}
+.dhs .section{padding:28px 0 8px}
+.dhs .section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.dhs .section-head h2{font-size:1.2rem}
+.dhs .section-sub{color:var(--text-muted);font-size:.86rem;margin:-8px 0 14px}
+.dhs .info-ic{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--slate-soft);color:var(--text-soft);font-size:.68rem;font-weight:800;cursor:help;flex:0 0 auto;position:relative;font-family:var(--font);letter-spacing:0;text-transform:none}
+.dhs .info-ic:hover .tip,.dhs .info-ic:focus .tip,.dhs .info-ic:focus-within .tip{display:block}
+.dhs .tip{display:none;position:absolute;left:50%;top:22px;transform:translateX(-50%);background:var(--navy);color:#fff;font-size:.74rem;font-weight:500;line-height:1.45;padding:10px 12px;border-radius:8px;width:280px;max-width:calc(100vw - 48px);z-index:60;box-shadow:var(--shadow);text-align:left;text-transform:none;letter-spacing:0}
+.dhs .tip::after{content:'';position:absolute;bottom:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-bottom-color:var(--navy)}
+.dhs .tip b{display:block;font-weight:800;margin-bottom:4px}
+.dhs .tip p{margin:0 0 5px}
+.dhs .tip p:last-child{margin:0}
+.dhs .tip .k{color:rgba(255,255,255,.62);font-weight:700}
+.dhs .kpi .tip,.dhs .tip.right{left:auto;right:-6px;transform:none}
+.dhs .kpi .tip::after,.dhs .tip.right::after{left:auto;right:8px;transform:none}
+.dhs .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:20px}
+.dhs .kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;box-shadow:var(--shadow);position:relative;transition:.15s;display:flex;flex-direction:column;gap:2px;min-width:0}
+.dhs a.kpi{color:inherit;text-decoration:none;cursor:pointer}
+.dhs a.kpi:hover{border-color:var(--accent);transform:translateY(-2px)}
+.dhs .kpi-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px}
+.dhs .kpi-label{font-size:.76rem;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:.03em}
+.dhs .kpi-value{font-family:var(--font-head);font-size:1.9rem;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.15}
+.dhs .kpi.hero .kpi-value{font-size:2.4rem;color:var(--accent)}
+.dhs .kpi-sub{font-size:.78rem;color:var(--text-muted);margin-top:4px}
+.dhs .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.dhs .tag{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;font-variant-numeric:tabular-nums}
+.dhs .tag.slate{background:var(--slate-soft);color:var(--text-muted)}
+.dhs .badge{font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--slate-soft);color:var(--text-muted);white-space:nowrap}
+.dhs .badge.ok{background:var(--mint-soft);color:var(--mint-ink)}
+.dhs .badge.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.dhs .badge.bad{background:var(--danger-soft);color:var(--danger-ink)}
+.dhs .badge.good{background:var(--accent-soft);color:var(--accent)}
+.dhs .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px;position:relative}
+.dhs .card-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.dhs .card-head h3{font-size:1rem}
+.dhs .card-head .grow{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.dhs .card-sub{font-size:.84rem;color:var(--text-muted);margin-bottom:14px}
+.dhs .two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px}
+.dhs .bars{display:flex;flex-direction:column;gap:8px}
+.dhs .bar-row{display:grid;grid-template-columns:minmax(120px,190px) 1fr auto;align-items:center;gap:12px;padding:3px 6px;border-radius:8px}
+.dhs .bar-row:hover{background:var(--accent-soft)}
+.dhs .bar-name{font-size:.8rem;font-weight:600;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dhs .bar-track{position:relative;background:var(--slate-soft);border-radius:6px;height:22px;overflow:visible}
+.dhs .bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),#8b8ef5)}
+.dhs .bar-fill.warn{background:linear-gradient(90deg,var(--warn),#f3c177)}
+.dhs .bar-fill.bad{background:linear-gradient(90deg,var(--danger),#f08a8a)}
+.dhs .bar-fill.ok{background:linear-gradient(90deg,var(--mint),#6fe3c6)}
+.dhs .bar-ref{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed var(--text-soft);left:70%}
+.dhs .bar-val{display:flex;align-items:center;gap:8px;justify-content:flex-end;min-width:128px}
+.dhs .bar-val .n{font-size:.88rem;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+.dhs .legend{font-size:.74rem;color:var(--text-muted);display:flex;gap:14px;flex-wrap:wrap;margin-top:10px}
+.dhs .tw{overflow-x:auto}
+.dhs table.dtable{width:100%;border-collapse:collapse;font-size:.86rem}
+.dhs table.dtable th{text-align:left;color:var(--text-soft);font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;font-weight:700;padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.dhs table.dtable td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.dhs table.dtable tr:last-child td{border-bottom:none}
+.dhs table.dtable .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dhs table.dtable td.num{font-weight:700;color:var(--text)}
+.dhs table.dtable td.viva{color:var(--accent)}
+.dhs table.dtable td.como{color:var(--text-muted);font-size:.8rem;min-width:15rem}
+.dhs table.dtable td.code{font-weight:800;white-space:nowrap}
+.dhs table.dtable tr:hover td{background:var(--accent-soft)}
+.dhs .actions{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.dhs .actions h4{font-size:.86rem;margin-bottom:8px}
+.dhs .actions ol{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:6px;font-size:.88rem}
+.dhs .method ol{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:6px;font-size:.88rem;color:var(--text-muted)}
+.dhs .method b{color:var(--text)}
+.dhs .fail{display:flex;align-items:center;justify-content:center;gap:6px;color:var(--text-muted);font-size:.78rem;min-height:40px}
+.dhs .fail::before{content:"";width:.375rem;height:.375rem;border-radius:50%;background:var(--danger)}
+.dhs .chart{position:relative;width:100%}
+.dhs .gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:6px}
+.dhs .gauge-foot{display:grid;grid-template-columns:1fr 1fr;width:100%;border-top:1px solid var(--border);margin-top:6px;padding-top:12px;text-align:center}
+.dhs .gauge-foot > div + div{border-left:1px solid var(--border)}
+.dhs .gauge-foot .kpi-label{display:block;margin-bottom:4px}
+.dhs .gauge-foot .v{font-family:var(--font-head);font-weight:800;font-size:1.5rem;color:var(--accent);font-variant-numeric:tabular-nums}
+.dhs .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.dhs .dcard .kpi-value{font-size:2rem}
+.dhs .dcard .kpi-value small{font-size:.8rem;color:var(--text-soft);font-weight:700;margin-left:2px}
+.dhs .pbar{height:8px;border-radius:999px;background:var(--slate-soft);overflow:hidden;margin:10px 0 12px}
+.dhs .pbar > div{height:100%;border-radius:999px}
+.dhs .mini{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dhs .mini > div{background:var(--slate-soft);border-radius:10px;padding:8px 10px;text-align:center}
+.dhs .mini .kpi-label{font-size:.66rem;display:block}
+.dhs .mini .v{font-weight:800;font-size:.95rem;font-variant-numeric:tabular-nums}
+.dhs .ogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px}
+.dhs .ocard{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg)}
+.dhs .ocard-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;font-family:var(--font-head);font-weight:800;font-size:.9rem}
+.dhs .orow{margin-bottom:10px}
+.dhs .orow:last-child{margin-bottom:0}
+.dhs .orow-t{display:flex;align-items:center;gap:8px;font-size:.8rem;margin-bottom:4px}
+.dhs .orow-t .rk{font-size:.68rem;font-weight:800;padding:1px 6px;border-radius:5px;background:var(--danger-soft);color:var(--danger-ink)}
+.dhs .orow-t .rk.r2{background:var(--warn-soft);color:var(--warn-ink)}
+.dhs .orow-t .rk.r3{background:var(--slate-soft);color:var(--text-muted)}
+.dhs .orow-t .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.dhs .orow-t .pc{font-weight:800;font-variant-numeric:tabular-nums}
+.dhs .otrack{height:6px;border-radius:999px;background:var(--slate-soft);overflow:hidden}
+.dhs .otrack > div{height:100%;border-radius:999px}
+.dhs .ctip{position:absolute;pointer-events:none;background:var(--navy);color:#fff;border-radius:8px;padding:7px 10px;font-size:.74rem;display:none;z-index:30;white-space:nowrap;box-shadow:var(--shadow)}
+.dhs .ctip .k{color:rgba(255,255,255,.62)}
+.dhs .clegend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--text-muted);margin-top:8px}
+.dhs table.dtable tr.clk{cursor:pointer}
+.dhs table.dtable tr.clk td.err{color:var(--danger-ink)}
+.dhs table.dtable tr.clk td.ok{color:var(--mint-ink)}
+.dhs table.dtable tr.fora td{color:var(--text-soft)}
+.dhs .st-tag{display:inline-block;font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.dhs .qbar{display:flex;height:14px;border-radius:999px;overflow:hidden;margin:10px 0 8px;background:var(--slate-soft)}
+.dhs .qbar button{border:none;padding:0;cursor:pointer;height:100%}
+.dhs .qleg{display:flex;flex-direction:column;gap:4px;font-size:.8rem}
+.dhs .qleg button{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:3px 6px;border-radius:6px}
+.dhs .qleg button:hover{background:var(--accent-soft)}
+.dhs .qleg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px}
+.dhs .objline{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 12px}
+.dhs .objpill{font-size:.8rem;padding:5px 10px;border-radius:8px;background:var(--danger-soft);color:var(--danger-ink)}
+.dhs .objpill b{margin-right:4px}
+.dhs tr.grp-h td{background:var(--slate-soft);font-weight:800;font-size:.76rem;color:var(--text-muted);white-space:normal}
+.dhs .st-tag.ok{background:var(--mint-soft);color:var(--mint-ink)}
+.dhs .st-tag.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.dhs .st-tag.slate{background:var(--slate-soft);color:var(--text-muted)}
+.dhs table.dtable tr.sel td{background:var(--accent-soft)}
+.dhs .hint{font-size:.76rem;color:var(--text-soft);margin:6px 0 0}
+.dhs .lista{margin-top:14px;border:1px solid var(--accent);border-radius:12px;padding:14px;background:var(--bg)}
+.dhs .lista-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.dhs .lista-h h4{font-size:.92rem;margin-right:auto}
+.dhs .chipset{display:inline-flex;background:var(--slate-soft);border-radius:999px;padding:3px;gap:2px}
+.dhs .chipset button{border:none;background:transparent;font:inherit;font-weight:700;font-size:.76rem;padding:5px 11px;border-radius:999px;cursor:pointer;color:var(--text-muted)}
+.dhs .chipset button.on{background:var(--accent);color:#fff}
+.dhs .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:6px 12px;font:inherit;font-weight:700;font-size:.8rem;cursor:pointer}
+.dhs .btn:hover{border-color:var(--accent)}
+.dhs .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.dhs .lista .tw{max-height:420px;overflow:auto;border-radius:8px;border:1px solid var(--border);background:var(--card)}
+.dhs .lista table.dtable th{position:sticky;top:0;background:var(--card);z-index:1}
+.dhs .lista table.dtable td{white-space:nowrap;font-size:.8rem}
+.dhs .lista .meta{font-size:.78rem;color:var(--text-muted);margin:8px 0 0}
+.dhs .lista .search{font:inherit;font-size:.8rem;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);min-width:180px}
+.dhs [data-dash-source-state=empty]{color:transparent}
+
+</style>
+</head><body>
+<div class="dhs">
+  <div class="topbar"><div class="wrap topbar-in">
+    <div class="brand"><strong>Data Health Score <span style="font-size:.7rem;background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;vertical-align:middle">DHS 2.0</span></strong><span>BizOps · direto do HubSpot</span></div>
+    <span class="pill">Atualizado: <b id="atualizado">—</b></span>
+    <span class="pill" id="statuspill">—</span>
+    <span class="pill"><button id="btn-run" type="button">Atualizar agora</button></span>
+  </div></div>
+
+  <div class="wrap">
+    <div id="aviso"></div>
+    <p class="lead" id="takeaway">—</p>
+
+    <div class="two-col" style="margin-top:20px">
+      <div class="card" style="margin:0">
+        <div class="card-head"><h3>Score da base de dados</h3><span class="grow"><span class="info-ic" tabindex="0" data-info="gauge">i</span></span></div>
+        <div class="gauge-wrap">
+          <div class="chart" id="gauge" style="max-width:340px;min-height:200px"></div>
+          <div class="gauge-foot">
+            <div><span class="kpi-label">Score</span><span class="v" data-k="dhs.total.final">—</span>
+              <div class="tags" style="justify-content:center"><span class="tag">Em uso <span data-k="dhs.uso.final">—</span></span></div></div>
+            <div><span class="kpi-label">Status</span><span class="badge" id="st-total">—</span>
+              <div class="kpi-sub">Média antes da penalidade: <span data-k="dhs.total.media">—</span></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin:0">
+        <div class="card-head"><h3>Score por dimensão</h3><span class="grow"><span class="info-ic" tabindex="0" data-info="radar">i</span></span></div>
+        <div class="chart" id="radar" style="min-height:300px"></div>
+        <div class="clegend"><span><span class="dot" style="background:var(--accent)"></span>Base inteira</span><span><span class="dot" style="background:transparent;border:2px dashed #a855f7"></span>Em uso</span></div>
+      </div>
+    </div>
+
+    <section class="section" id="qualidade" style="padding-top:20px">
+      <div class="section-head"><h2>Qualidade dos registros por objeto</h2><span class="info-ic" tabindex="0" data-info="qualidade">i</span></div>
+      <p class="section-sub">Quantos registros estão sem nenhum problema, com um problema ou com dois ou mais. Clique numa faixa para ver os registros e os problemas de cada um.</p>
+      <div class="kpi-grid" id="headline"></div>
+      <div class="qslot"></div>
+    </section>
+
+    <section class="section" id="dimensoes">
+      <div class="section-head"><h2>Notas por dimensão</h2><span class="info-ic" tabindex="0" data-info="impacto">i</span></div>
+      <p class="section-sub">Nota da base inteira; a tag roxa mostra os registros em uso. Impacto = pontos que a dimensão tira do DHS. Clique para ver os problemas e as ações.</p>
+      <div class="kpi-grid" id="dim-cards"></div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <div class="card-head"><h3>Top 3 origens ofensoras por dimensão</h3><span class="grow"><span class="info-ic" tabindex="0" data-info="origens">i</span></span></div>
+        <p class="card-sub">Parte dos erros de empresas e contatos de cada dimensão que vem de cada origem de criação do registro.</p>
+        <div class="ogrid" id="ogrid"></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="two-col">
+        <div class="card" style="margin:0">
+          <div class="card-head"><h3>Evolução — Data Health Score</h3><span class="grow"><span class="info-ic" tabindex="0" data-info="historico">i</span></span></div>
+          <p class="card-sub">Uma medição por dia, base inteira e em uso.</p>
+          <div class="chart" id="hist1" style="min-height:240px"></div>
+          <div class="clegend" id="hist1-leg"></div>
+        </div>
+        <div class="card" style="margin:0">
+          <div class="card-head"><h3>Evolução por dimensão</h3><span class="grow"><span class="info-ic" tabindex="0" data-info="historico">i</span></span></div>
+          <p class="card-sub">Base inteira.</p>
+          <div class="chart" id="hist2" style="min-height:240px"></div>
+          <div class="clegend" id="hist2-leg"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="secoes"></div>
+
+<template id="tpl-lista">
+  <div class="lista">
+    <div class="lista-h">
+      <h4 class="lt">Registros</h4>
+      <span class="chipset sit"><button data-v="erro" class="on">Com erro</button><button data-v="ok">Corretos</button></span>
+      <span class="chipset esc"><button data-v="total" class="on">Base inteira</button><button data-v="uso">Em uso</button></span>
+      <input class="search" type="search" placeholder="Buscar na lista" aria-label="Buscar na lista">
+      <button class="btn primary dl">Baixar CSV</button>
+      <button class="btn close" aria-label="Fechar lista">Fechar ×</button>
+    </div>
+    <div class="tw"><table class="dtable"><thead><tr></tr></thead><tbody></tbody></table></div>
+    <p class="meta"></p>
+    <p class="hint">Para corrigir em massa: baixe o CSV, ajuste os campos mantendo a coluna "Record ID" e importe no HubSpot como atualização de registros existentes.</p>
+  </div>
+</template>
+<template id="tpl-metodo"><section class="section">
+      <div class="card method" id="metodo">
+        <div class="card-head"><h3>Como o score é calculado</h3><span class="info-ic" tabindex="0" data-info="bases">i</span></div>
+        <ol>
+          <li><b>Escopo:</b> Empresas, Contatos e Leads (pipelines SDRs e Executivos), exceto registros internos da RankMyApp. Objetos personalizados, contratos e processos comerciais ficam no HubScore e nas monitorias operacionais. A tag roxa repete o cálculo só para os registros em uso.</li>
+          <li><b>Em uso:</b> empresa com negócio, cliente ou lead aberto; contato com negócio, associado a lead ou que já foi MQL; lead aberto.</li>
+          <li><b>Nota da dimensão (DHS 2.0):</b> cada objeto recebe a nota % de registros sem nenhum erro na dimensão (cada registro conta uma vez). A dimensão é a média dos objetos, pesada pelo nº de regras de cada um, com teto de 70% por objeto.</li>
+          <li><b>DHS:</b> Acurácia 25% · Consistência 25% · Completude 20% · Duplicidade 15% · Integridade 15%, sem penalidade pela pior dimensão. A partir de 30/10/2026 a metodologia mudou (DHS 2.0): medições anteriores não são comparáveis.</li>
+          <li><b>Faixas:</b> até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.</li>
+          <li><b>Fora da nota:</b> regras em Monitoramento e Pendente e as linhas de Detalhe. Higiene, pipeline, contratos e dono do registro não fazem parte do score.</li>
+        </ol>
+      </div>
+    </section></template>
+  </div>
+</div>
+<script>
+window.DHS_INFO = {
+  qualidade: {t:'Qualidade dos registros por objeto', p:[['O que é','Para cada empresa, contato e lead, quantas regras da nota ele descumpre: nenhuma, uma, ou duas ou mais.'],['Diferente da nota','A nota da dimensão olha um tipo de problema por vez. Aqui o registro só aparece como "sem problemas" se passar em todas as regras de todas as dimensões.']]},
+  sau_empresas: {t:'Empresas 100% saudáveis', p:[['O que é','% de empresas que não falham em nenhuma regra da nota: acurácia, campos, duplicidade e contato associado.'],['Tag roxa','O mesmo cálculo só para as empresas em uso (negócio, cliente ou lead aberto).']]},
+  sau_contatos: {t:'Contatos 100% saudáveis', p:[['O que é','% de contatos que não falham em nenhuma regra da nota: acurácia, consistência, campos, LinkedIn duplicado e empresa associada.'],['Tag roxa','O mesmo cálculo só para os contatos em uso (negócio, lead ou já foi MQL).']]},
+  sau_leads: {t:'Leads 100% saudáveis', p:[['O que é','% de leads dos pipelines SDRs e Executivos sem erro: contato e empresa associados, origem preenchida, dados iguais aos do contato e sem lead aberto duplicado.'],['Tag','O mesmo cálculo só para os leads abertos.']]},
+  gauge: {t:'Data Health Score 2.0', p:[['O que é','Nota de saúde da base de Empresas, Contatos e Leads do HubSpot, de 0 a 100. A tag roxa mostra o mesmo cálculo só para os registros em uso.'],['Cálculo','Em cada dimensão, cada objeto recebe a nota % de registros sem erro. A nota da dimensão é a média dos objetos, pesada pelo nº de regras de cada objeto (nenhum objeto passa de 70%). O DHS é a soma de peso × nota das dimensões, sem penalidade extra.'],['Faixas','Até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.']]},
+  radar: {t:'Score por dimensão', p:[['Como ler','Cada eixo é a nota de uma dimensão de 0 a 100. A área preenchida é a base inteira; a linha tracejada roxa são os registros em uso.']]},
+  impacto: {t:'Peso e impacto', p:[['Peso','Quanto a dimensão vale no DHS.'],['Impacto','Pontos que a dimensão tira do DHS: peso × (100 − nota). Mostra onde corrigir rende mais.']]},
+  origens: {t:'Top 3 origens ofensoras', p:[['O que é','As 3 origens de criação do registro (Record source do HubSpot) que concentram mais erros de empresas e contatos em cada dimensão, na base inteira.']]},
+  historico: {t:'Evolução mensal', p:[['O que é','Cada ponto é uma medição diária do Data Health Score, lida direto do HubSpot. O histórico começa na primeira medição deste painel.']]},
+  saudaveis: {t:'Registros 100% saudáveis', p:[['O que é','% de empresas e de contatos que não falham em nenhuma regra que entra na nota.'],['Como ler','É a leitura mais dura: um único erro tira o registro da conta.']]},
+  uso: {t:'Registros em uso', p:[['Empresa em uso','Tem negócio, é cliente ou tem lead aberto.'],['Contato em uso','Tem negócio, está associado a um lead ou já foi MQL.'],['Para que serve','A nota é da base inteira. A tag roxa mostra quanto do problema está nos registros que o time usa hoje.']]},
+  registros: {t:'Avaliados, corretos e com erro', p:[['Avaliados','Registros em que a regra se aplica. Ex.: porte × funcionários só avalia empresas com os dois campos preenchidos.'],['Corretos','Avaliados que passam na regra.'],['Com erro','Avaliados que falham na regra.'],['Status','Oficial entra na nota. Em validação entra na nota, mas a regra ainda será conferida com amostra. Detalhe, Monitoramento e Pendente ficam fora da nota.'],['Lista','Clique na linha para ver os registros, abrir no HubSpot ou baixar o CSV.']]},
+  acuracia: {t:'Acurácia · peso 25%', p:[['Pergunta','O valor preenchido está certo?'],['Regras','Empresa (5): porte × nº de funcionários, CNPJ, país × Breeze, domínio × site, segmento × indústria do Breeze. Contato (1): LinkedIn × Breeze.'],['Peso dos objetos','Empresas 70% (teto) · Contatos 30%.']]},
+  consistencia: {t:'Consistência entre objetos · peso 25%', p:[['Pergunta','A mesma informação bate entre Empresas, Contatos, Leads e Negócios?'],['Regras','Empresa (3): nome × contatos, empresa dos leads × contatos, lifecycle × contatos. Contato (2): e-mail × empresa, campo Empresa × empresa. Lead (4): telefone e empresa × contato; Operação e Intenção de compra × negócio (só leads agendados).'],['Peso dos objetos','Pelo nº de regras: Empresas 3, Contatos 2, Leads 4.']]},
+  completude: {t:'Completude · peso 20%', p:[['Pergunta','Os campos necessários estão preenchidos?'],['Regras','Empresa (7): nome, porte, segmento, país, abrangência, domínio e CNPJ (só Cliente). Contato (5): nome, e-mail, hierarquia do cargo, área do POC e LinkedIn. Lead (3): origem e, nos agendados, Operação e Intenção de compra.'],['Peso dos objetos','Pelo nº de campos: Empresas 7, Contatos 5, Leads 3.'],['Detalhe','As linhas com ↳ mostram cada campo vazio e não entram na nota.']]},
+  unicidade: {t:'Duplicidade · peso 15%', p:[['Pergunta','Existe um registro por entidade?'],['Regras','Empresa (3): mesmo domínio, mesmo domínio raiz, mesmo nome. Contato (1): mesmo LinkedIn.'],['Nota','% de registros sem cópia; uma empresa duplicada conta uma vez na nota do objeto.'],['Peso dos objetos','Empresas 70% (teto) · Contatos 30%.']]},
+  integridade: {t:'Integridade · peso 15%', p:[['Pergunta','Os registros estão conectados?'],['Regras','Empresa (1): sem contato. Contato (1): sem empresa. Lead (2): sem contato, sem empresa. INT-05 (lead agendado sem negócio) é só monitoramento.'],['Peso dos objetos','Empresas 25% · Contatos 25% · Leads 50%.']]}
+};
+window.DHS_DIMS = [
+  {id:'acuracia', nome:'Acurácia', peso:0.25, pergunta:'O valor preenchido está certo?',
+   acoes:['Criar workflow que recalcula o porte pelo nº de funcionários (ACU-01).',
+          'Corrigir CNPJs inválidos e validar o CNPJ no formulário (ACU-02).',
+          'Revisar as divergências com o Breeze (país, site, LinkedIn e segmento) pela lista, que mostra os dois valores (ACU-03 a ACU-06).']},
+  {id:'consistencia', nome:'Consistência entre objetos', peso:0.25, pergunta:'A mesma informação bate entre Empresas, Contatos e Leads?',
+   acoes:['Revisar a associação de contatos com e-mail ou campo Empresa diferente da empresa associada, começando pelos importados (CON-01 e CON-02).',
+          'Sincronizar telefone e empresa do lead com o contato (CON-03 e CON-04) e Operação/Intenção de compra com o negócio (CON-08 e CON-09).',
+          'Revisar empresas com nome, leads ou lifecycle divergentes dos contatos (CON-05 a CON-07).']},
+  {id:'completude', nome:'Completude', peso:0.20, pergunta:'Os campos necessários estão preenchidos?',
+   acoes:['Copiar para a propriedade oficial os dados que já existem em outra propriedade (veja o Mapa de campos).',
+          'Enriquecer porte, país e abrangência e cadastrar o CNPJ das empresas Cliente (COM-01).',
+          'Tornar nome, e-mail, hierarquia do cargo e área do POC obrigatórios no contato, e Operação e Intenção de compra obrigatórias ao agendar (COM-02 e COM-03).']},
+  {id:'unicidade', nome:'Duplicidade', peso:0.15, pergunta:'Existe um registro por entidade?',
+   acoes:['Mesclar empresas com o mesmo domínio e depois revisar domínio raiz e nome (UNI-01 a UNI-03).',
+          'Mesclar contatos com o mesmo LinkedIn (UNI-04).']},
+  {id:'integridade', nome:'Integridade', peso:0.15, pergunta:'Os registros estão conectados como deveriam?',
+   acoes:['Associar contatos às empresas pelo domínio do e-mail (INT-02).',
+          'Associar contato e empresa aos leads sem vínculo (INT-03 e INT-04).',
+          'Associar contatos às empresas sem contato ou arquivá-las (INT-01).',
+          'SDRs e executivos criarem ou associarem o negócio dos leads agendados (INT-05, monitoramento).']}
+];
+
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+(() => {
+  const nf1 = (v) => v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+  const nint = (v) => v == null || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', {maximumFractionDigits: 0});
+  const pct = (v) => v == null || isNaN(v) ? '—' : (100 * v).toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%';
+  const stOf = (v) => v <= 50 ? 'Crítico' : v <= 70 ? 'Atenção' : v <= 85 ? 'Bom' : v <= 95 ? 'Saudável' : 'Excelente';
+  const badgeCls = (s) => s === 'Crítico' ? 'bad' : s === 'Atenção' ? 'warn' : s === 'Bom' ? 'good' : 'ok';
+  const COR = {acuracia: '#ec4899', consistencia: '#10b981', completude: '#f59e0b', unicidade: '#8b5cf6', integridade: '#3b82f6'};
+  const VIVA = '#a855f7';
+  const root = document.querySelector('.dhs');
+  let DATA = null, HIST = [];
+  const api = async (p, opt) => { const r = await fetch(p, opt); const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch (e) {} return {ok: r.ok, status: r.status, j}; };
+
+  // ---------- tooltips ----------
+  const fillTip = (el) => {
+    const info = window.DHS_INFO[el.getAttribute('data-info')]; if (!info || el.querySelector('.tip')) return;
+    const t = document.createElement('span'); t.className = 'tip';
+    const h = document.createElement('b'); h.textContent = info.t; t.appendChild(h);
+    info.p.forEach(([k, v]) => { const p = document.createElement('p'); const s = document.createElement('span'); s.className = 'k'; s.textContent = k + ': '; p.appendChild(s); p.appendChild(document.createTextNode(v)); t.appendChild(p); });
+    el.appendChild(t);
+  };
+
+  // ---------- estrutura: cards e seções por dimensão ----------
+  const cards = document.getElementById('dim-cards'), secoes = document.getElementById('secoes');
+  window.DHS_DIMS.forEach(d => {
+    const a = document.createElement('a'); a.className = 'kpi dcard'; a.href = '#dim-' + d.id;
+    a.innerHTML = `<div class="kpi-top"><span class="kpi-label"><span class="dot"></span><span class="nm"></span></span><span class="info-ic" tabindex="0" data-info="${d.id}">i</span></div>
+      <span class="kpi-value"><span data-k="dim.${d.id}.total">—</span><small>/100</small></span>
+      <div class="tags"><span class="badge st"></span><span class="tag">Em uso <span data-k="dim.${d.id}.uso">—</span></span></div>
+      <div class="pbar"><div></div></div>
+      <div class="mini"><div><span class="kpi-label">Peso</span><span class="v">${d.peso.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+        <div><span class="kpi-label">Impacto</span><span class="v" data-k="dim.${d.id}.impacto_total">—</span></div></div>`;
+    a.querySelector('.dot').style.background = COR[d.id];
+    a.querySelector('.nm').textContent = d.nome;
+    a.querySelector('.kpi-value').style.color = COR[d.id];
+    a.querySelector('.pbar > div').style.background = COR[d.id];
+    a.addEventListener('click', (ev) => { ev.preventDefault(); if (ev.target.closest('.info-ic')) return; document.getElementById('dim-' + d.id).scrollIntoView({behavior: 'smooth', block: 'start'}); history.replaceState(null, '', '#dim-' + d.id); });
+    cards.appendChild(a);
+    const s = document.createElement('section'); s.className = 'section'; s.id = 'dim-' + d.id;
+    s.innerHTML = `<div class="card">
+      <div class="card-head"><span class="dot"></span><h3></h3><span class="info-ic" tabindex="0" data-info="${d.id}">i</span>
+        <div class="grow"><span class="badge st"></span><span class="tag slate">Base inteira <span data-k="dim.${d.id}.total">—</span></span><span class="tag">Em uso <span data-k="dim.${d.id}.uso">—</span></span></div></div>
+      <p class="card-sub"></p>
+      <div class="objline"></div>
+      <div class="tw"><table class="dtable"><thead><tr><th>IDP</th><th>Regra</th><th>Objeto</th><th>Como é medido</th><th>Status</th>
+        <th class="num">Avaliados</th><th class="num">Corretos</th><th class="num">Com erro</th><th class="num">% erro</th><th class="num">% erro em uso</th></tr></thead><tbody></tbody></table></div>
+      <p class="hint">Clique em uma linha para ver a lista de registros com erro ou corretos, abrir no HubSpot ou baixar para corrigir. <span class="info-ic" tabindex="0" data-info="registros">i</span></p>
+      <div class="lista-slot"></div>
+      <div class="actions"><h4>Ações para subir a nota</h4><ol></ol></div></div>`;
+    s.querySelector('.dot').style.background = COR[d.id];
+    s.querySelector('h3').textContent = `${d.nome} · peso ${Math.round(d.peso * 100)}%`;
+    s.querySelector('.card-sub').textContent = d.pergunta;
+    d.acoes.forEach(x => { const li = document.createElement('li'); li.textContent = x; s.querySelector('ol').appendChild(li); });
+    secoes.appendChild(s);
+  });
+  secoes.insertAdjacentHTML('afterend', document.getElementById('tpl-metodo').innerHTML);
+  root.querySelectorAll('.info-ic[data-info]').forEach(fillTip);
+  root.querySelectorAll('#dim-cards .info-ic, .card-head .grow .info-ic, #headline .kpi:last-child .info-ic').forEach(el => { const t = el.querySelector('.tip'); if (t) t.classList.add('right'); });
+
+  // ---------- preenchimento ----------
+  const val = (k) => {
+    const [src, a, b] = k.split('.');
+    if (src === 'dhs') { const r = DATA.dhs.find(x => x.escopo === a); return r ? (b === 'final' || b === 'media' || b === 'pior' ? nf1(r[b]) : r[b]) : '—'; }
+    if (src === 'sau') { const v = DATA.saudaveis[a]; return a.endsWith('_n') ? nint(v) : pct(v); }
+    if (src === 'dim') { const r = DATA.dimensoes.find(x => x.dimensao === a); return r ? nf1(r[b]) : '—'; }
+    return '—';
+  };
+  const fill = () => root.querySelectorAll('[data-k]').forEach(el => { el.textContent = val(el.getAttribute('data-k')); });
+
+  const fail = (box, msg) => { const f = document.createElement('div'); f.className = 'fail'; f.textContent = msg || 'Sem dados'; box.appendChild(f); };
+  const mkTip = (box) => { let t = box.querySelector('.ctip'); if (!t) { t = document.createElement('div'); t.className = 'ctip'; box.appendChild(t); } return t; };
+  const showTip = (box, t, ev, lines) => {
+    t.innerHTML = '';
+    lines.forEach(([k, v, c]) => { const l = document.createElement('div'); if (c) { const d = document.createElement('span'); d.className = 'dot'; d.style.background = c; l.appendChild(d); } if (k) { const s = document.createElement('span'); s.className = 'k'; s.textContent = k + (v != null ? ': ' : ''); l.appendChild(s); } if (v != null) l.appendChild(document.createTextNode(v)); t.appendChild(l); });
+    const [mx, my] = d3.pointer(ev, box);
+    t.style.display = 'block'; t.style.left = Math.max(0, Math.min(mx + 12, box.clientWidth - t.offsetWidth)) + 'px'; t.style.top = (my + 14) + 'px';
+  };
+
+  const drawGauge = () => {
+    const box = document.getElementById('gauge'); box.innerHTML = '';
+    const t = DATA.dhs.find(x => x.escopo === 'total'), u = DATA.dhs.find(x => x.escopo === 'uso');
+    const W = Math.min(340, box.clientWidth || 340), H = W * 0.62, r = W * 0.42, th = Math.max(14, W * 0.06);
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    const g = svg.append('g').attr('transform', `translate(${W / 2},${r + 10})`);
+    const a0 = -Math.PI * 0.75, a1 = Math.PI * 0.75, sc = d3.scaleLinear([0, 100], [a0, a1]);
+    const arc = d3.arc().innerRadius(r - th).outerRadius(r).cornerRadius(th / 2);
+    g.append('path').attr('d', arc({startAngle: a0, endAngle: a1})).attr('fill', 'var(--slate-soft)');
+    g.append('path').attr('d', arc({startAngle: a0, endAngle: sc(Math.max(0, Math.min(100, t.final)))})).attr('fill', 'var(--accent)');
+    const vv = sc(Math.max(0, Math.min(100, u.final)));
+    g.append('circle').attr('cx', Math.sin(vv) * (r - th / 2)).attr('cy', -Math.cos(vv) * (r - th / 2)).attr('r', th / 2 + 2).attr('fill', 'var(--card)').attr('stroke', VIVA).attr('stroke-width', 3);
+    g.append('text').attr('text-anchor', 'middle').attr('dy', '0.1em').style('font-family', 'var(--font-head)').style('font-weight', 800).style('font-size', (W * 0.13) + 'px').attr('fill', 'var(--text)').text(nf1(t.final));
+    g.append('text').attr('text-anchor', 'middle').attr('dy', '2.6em').style('font-size', '.74rem').style('font-weight', 700).attr('fill', 'var(--text-soft)').text('DE 100');
+    const st = document.getElementById('st-total'); st.className = 'badge ' + badgeCls(t.status); st.textContent = t.status;
+  };
+
+  const drawRadar = () => {
+    const rows = DATA.dimensoes, box = document.getElementById('radar'); box.querySelectorAll('svg,.fail').forEach(n => n.remove());
+    const W = Math.max(280, box.clientWidth), H = Math.min(380, Math.max(300, W * 0.7));
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    const meas = svg.append('text').style('font-size', '.78rem').style('font-weight', 600);
+    let lw = 0; rows.forEach(r => { meas.text(r.nome); lw = Math.max(lw, meas.node().getComputedTextLength()); }); meas.remove();
+    const R = Math.max(60, Math.min(H / 2 - 30, W / 2 - lw - 16));
+    const g = svg.append('g').attr('transform', `translate(${W / 2},${H / 2})`);
+    const n = rows.length, ang = (i) => (Math.PI * 2 * i) / n - Math.PI / 2, rs = d3.scaleLinear([0, 100], [0, R]);
+    [25, 50, 75, 100].forEach(v => g.append('polygon').attr('points', rows.map((_, i) => [Math.cos(ang(i)) * rs(v), Math.sin(ang(i)) * rs(v)].join(',')).join(' ')).attr('fill', 'none').attr('stroke', 'var(--border)'));
+    rows.forEach((r, i) => {
+      g.append('line').attr('x2', Math.cos(ang(i)) * R).attr('y2', Math.sin(ang(i)) * R).attr('stroke', 'var(--border)');
+      const lx = Math.cos(ang(i)) * (R + 12), ly = Math.sin(ang(i)) * (R + 12);
+      g.append('text').attr('x', lx).attr('y', ly).attr('dy', '0.35em').attr('text-anchor', Math.abs(lx) < 4 ? 'middle' : lx > 0 ? 'start' : 'end').style('font-size', '.78rem').style('font-weight', 600).attr('fill', 'var(--text-muted)').text(r.nome);
+    });
+    const pts = (k) => rows.map((r, i) => [Math.cos(ang(i)) * rs(r[k]), Math.sin(ang(i)) * rs(r[k])].join(',')).join(' ');
+    g.append('polygon').attr('points', pts('total')).attr('fill', 'var(--accent)').attr('fill-opacity', 0.18).attr('stroke', 'var(--accent)').attr('stroke-width', 2);
+    g.append('polygon').attr('points', pts('uso')).attr('fill', 'none').attr('stroke', VIVA).attr('stroke-width', 2).attr('stroke-dasharray', '5 4');
+    const tip = mkTip(box);
+    rows.forEach((r, i) => {
+      g.append('circle').attr('cx', Math.cos(ang(i)) * rs(r.total)).attr('cy', Math.sin(ang(i)) * rs(r.total)).attr('r', 4).attr('fill', COR[r.dimensao]);
+      g.append('circle').attr('cx', Math.cos(ang(i)) * rs(r.total)).attr('cy', Math.sin(ang(i)) * rs(r.total)).attr('r', 14).attr('fill', 'transparent')
+        .on('mousemove', (ev) => showTip(box, tip, ev, [[r.nome, null], ['Base inteira', nf1(r.total), 'var(--accent)'], ['Em uso', nf1(r.uso), VIVA]])).on('mouseleave', () => { tip.style.display = 'none'; });
+    });
+  };
+
+  const drawLines = (boxId, rows, series, legendId) => {
+    const box = document.getElementById(boxId); box.querySelectorAll('svg,.fail').forEach(n => n.remove());
+    const lg = legendId && document.getElementById(legendId); if (lg) lg.innerHTML = '';
+    if (!rows.length) { fail(box, 'O histórico começa na primeira medição.'); return; }
+    const W = Math.max(280, box.clientWidth), H = 240, m = {t: 12, r: 14, b: 26, l: 34};
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    const x = d3.scalePoint(rows.map(r => r.data), [m.l, W - m.r]).padding(0.3), y = d3.scaleLinear([0, 100], [H - m.b, m.t]);
+    [0, 25, 50, 75, 100].forEach(v => { svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(v)).attr('y2', y(v)).attr('stroke', 'var(--border)').attr('stroke-dasharray', v ? '3 3' : null);
+      svg.append('text').attr('x', m.l - 6).attr('y', y(v)).attr('dy', '0.35em').attr('text-anchor', 'end').style('font-size', '.66rem').attr('fill', 'var(--text-soft)').text(v); });
+    const lbl = (dt) => dt.slice(8, 10) + '/' + dt.slice(5, 7);
+    const step = Math.max(1, Math.ceil(rows.length / Math.max(2, Math.floor((W - 60) / 50))));
+    rows.forEach((r, i) => { if (i % step === 0 || i === rows.length - 1) svg.append('text').attr('x', x(r.data)).attr('y', H - 8).attr('text-anchor', 'middle').style('font-size', '.66rem').attr('fill', 'var(--text-soft)').text(lbl(r.data)); });
+    series.forEach(sr => { const pts = rows.filter(r => r[sr.k] != null);
+      svg.append('path').attr('d', d3.line().x(r => x(r.data)).y(r => y(r[sr.k]))(pts)).attr('fill', 'none').attr('stroke', sr.c).attr('stroke-width', 2.5);
+      svg.selectAll(null).data(pts).join('circle').attr('cx', r => x(r.data)).attr('cy', r => y(r[sr.k])).attr('r', 4).attr('fill', sr.c); });
+    const tip = mkTip(box), bw = rows.length > 1 ? x(rows[1].data) - x(rows[0].data) : W;
+    svg.selectAll(null).data(rows).join('rect').attr('x', r => x(r.data) - bw / 2).attr('y', m.t).attr('width', bw).attr('height', H - m.t - m.b).attr('fill', 'transparent')
+      .on('mousemove', (ev, r) => showTip(box, tip, ev, [[lbl(r.data), null]].concat(series.map(sr => [sr.n, nf1(r[sr.k]), sr.c])))).on('mouseleave', () => { tip.style.display = 'none'; });
+    if (lg) series.forEach(sr => { const s = document.createElement('span'); const d = document.createElement('span'); d.className = 'dot'; d.style.background = sr.c; s.appendChild(d); s.appendChild(document.createTextNode(sr.n)); lg.appendChild(s); });
+  };
+
+  const drawOrigens = () => {
+    const box = document.getElementById('ogrid'); box.innerHTML = '';
+    window.DHS_DIMS.forEach(d => {
+      const rows = DATA.origens.filter(r => r.dimensao === d.id); if (!rows.length) return;
+      const c = document.createElement('div'); c.className = 'ocard';
+      c.innerHTML = `<div class="ocard-h"><span><span class="dot" style="background:${COR[d.id]}"></span></span></div>`;
+      c.querySelector('.ocard-h span').appendChild(document.createTextNode(d.nome));
+      rows.forEach(r => { const row = document.createElement('div'); row.className = 'orow';
+        row.innerHTML = `<div class="orow-t"><span class="rk${r.rank > 1 ? ' r' + r.rank : ''}">#${r.rank}</span><span class="nm"></span><span class="pc">${pct(r.share)}</span></div><div class="otrack"><div style="width:${100 * r.share}%;background:${COR[d.id]}"></div></div>`;
+        row.querySelector('.nm').textContent = r.origem; c.appendChild(row); });
+      box.appendChild(c);
+    });
+  };
+
+  const drawTabelas = () => {
+    window.DHS_DIMS.forEach(d => {
+      const r = DATA.dimensoes.find(x => x.dimensao === d.id);
+      root.querySelectorAll(`a[href="#dim-${d.id}"] .badge.st, #dim-${d.id} .badge.st`).forEach(b => { b.className = 'badge st ' + badgeCls(stOf(r.total)); b.textContent = stOf(r.total); });
+      const pb = root.querySelector(`a[href="#dim-${d.id}"] .pbar > div`); pb.style.width = Math.max(0, Math.min(100, r.total)) + '%';
+      const ol = document.querySelector(`#dim-${d.id} .objline`); ol.innerHTML = '';
+      (r.objetos || []).forEach(o => { const s = document.createElement('span'); s.className = 'objpill';
+        const b = document.createElement('b'); b.textContent = o.objeto; s.appendChild(b);
+        s.appendChild(document.createTextNode(` · peso ${o.peso != null ? Math.round(100 * o.peso) + '%' : '—'} · nota ${nf1(o.nota)} · ${nint(o.com_erro)} de ${nint(o.avaliados)} com problema`)); ol.appendChild(s); });
+      const body = document.querySelector(`#dim-${d.id} tbody`); body.innerHTML = '';
+      DATA.idps.filter(x => x.dimensao === d.id).forEach(x => {
+        const tr = document.createElement('tr'); tr.dataset.key = x.idp;
+        if (x.lista) { tr.className = 'clk'; tr.title = 'Ver registros'; }
+        if (!x.nota) tr.classList.add('fora');
+        [[x.idp, 'code'], [x.regra, ''], [x.objeto, ''], [x.como, 'como'], [x.status, 'stt'], [nint(x.total_base), 'num'], [nint(x.total_ok), 'num ok'], [nint(x.total), 'num err'], [pct(x.total_pct), 'num'], [pct(x.uso_pct), 'num viva']].forEach(([v, c]) => {
+          const td = document.createElement('td'); if (c) td.className = c;
+          if (c === 'stt') { const s = document.createElement('span'); s.className = 'st-tag ' + ({'Oficial': 'ok', 'Em validação': 'warn'}[v] || 'slate'); s.textContent = v; td.appendChild(s); } else td.textContent = v;
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+    });
+  };
+
+  // ---------- listas ----------
+  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', problemas: 'Regras descumpridas', email_tipo: 'Tipo de e-mail', operacao_lead: 'Operação do lead', operacao_negocio: 'Operação do negócio', intencao_lead: 'Intenção do lead', intencao_negocio: 'Intenção do negócio', qtd_no_grupo: 'Registros no grupo', industria_breeze: 'Indústria (Breeze)', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
+  const LST = {idp: null, regra: '', sit: 'erro', esc: 'total', q: '', rows: [], total: 0, panel: null, objeto: false};
+  const panel = () => {
+    if (LST.panel) return LST.panel;
+    const p = document.getElementById('tpl-lista').content.firstElementChild.cloneNode(true);
+    p.querySelectorAll('.sit button').forEach(b => b.addEventListener('click', () => { LST.sit = b.dataset.v; carregar(); }));
+    p.querySelectorAll('.esc button').forEach(b => b.addEventListener('click', () => { LST.esc = b.dataset.v; carregar(); }));
+    p.querySelector('.close').addEventListener('click', () => { p.remove(); LST.idp = null; root.querySelectorAll('tr.sel').forEach(t => t.classList.remove('sel')); });
+    p.querySelector('.search').addEventListener('input', (ev) => { LST.q = ev.target.value.toLowerCase(); desenhar(); });
+    p.querySelector('.dl').addEventListener('click', baixar);
+    LST.panel = p; return p;
+  };
+  const filtradas = () => !LST.q ? LST.rows : LST.rows.filter(r => Object.values(r).some(v => v != null && String(v).toLowerCase().includes(LST.q)));
+  const desenhar = () => {
+    const p = LST.panel; if (!p) return;
+    p.querySelectorAll('.sit button').forEach(b => b.classList.toggle('on', b.dataset.v === LST.sit));
+    p.querySelectorAll('.esc button').forEach(b => b.classList.toggle('on', b.dataset.v === LST.esc));
+    p.querySelector('.esc').style.display = LST.objeto ? 'none' : '';
+    p.querySelector('.lt').textContent = `${LST.idp} · ${LST.regra}`;
+    const head = p.querySelector('thead tr'), body = p.querySelector('tbody'); head.innerHTML = ''; body.innerHTML = '';
+    const rows = filtradas(), cols = LST.rows[0] ? Object.keys(LST.rows[0]) : [];
+    cols.forEach(c => { const th = document.createElement('th'); th.textContent = HEAD[c] || c; head.appendChild(th); });
+    let gAnt = null;
+    rows.slice(0, 500).forEach(rw => { if (rw.grupo_duplicidade !== undefined && rw.qtd_no_grupo && rw.grupo_duplicidade !== gAnt) { gAnt = rw.grupo_duplicidade; const gh = document.createElement('tr'); gh.className = 'grp-h'; const gtd = document.createElement('td'); gtd.colSpan = cols.length; gtd.textContent = `Grupo: ${rw.grupo_duplicidade} · ${rw.qtd_no_grupo} registros`; gh.appendChild(gtd); body.appendChild(gh); }
+      const tr = document.createElement('tr');
+      cols.forEach(c => { const td = document.createElement('td');
+        if (c === 'link_hubspot' && rw[c]) { const a = document.createElement('a'); a.href = rw[c]; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir'; td.appendChild(a); } else td.textContent = rw[c] == null ? '' : rw[c];
+        tr.appendChild(td); });
+      body.appendChild(tr); });
+    p.querySelector('.meta').textContent = `${nint(rows.length)} registro(s)${LST.q ? ' encontrados' : ''}${LST.total > LST.rows.length ? ` · mostrando ${nint(LST.rows.length)} de ${nint(LST.total)}` : ''}${rows.length > 500 ? ' · a tela mostra os 500 primeiros, o CSV leva todos' : ''}`;
+  };
+  const carregar = async () => {
+    const p = LST.panel; p.querySelector('.meta').textContent = 'Carregando registros…'; p.querySelector('tbody').innerHTML = '';
+    const r = await api(`/api/lista?idp=${encodeURIComponent(LST.idp)}&situacao=${LST.sit}&escopo=${LST.esc}`);
+    if (!r.ok) { p.querySelector('.meta').textContent = 'Não foi possível carregar a lista.'; return; }
+    LST.rows = r.j.rows; LST.total = r.j.total; desenhar();
+  };
+  const baixar = () => {
+    const rows = filtradas(); if (!rows.length) return;
+    const cols = Object.keys(rows[0]);
+    const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const csv = '\ufeff' + [cols.map(c => esc(HEAD[c] || c)).join(',')].concat(rows.map(r => cols.map(c => esc(r[c])).join(','))).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+    a.download = `${LST.idp}_${LST.sit}_${LST.objeto ? 'total' : LST.esc}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  };
+  secoes.addEventListener('click', (ev) => {
+    if (ev.target.closest('.lista') || ev.target.closest('.info-ic')) return;
+    const row = ev.target.closest('tr.clk[data-key]'); if (!row) return;
+    const x = DATA.idps.find(i => i.idp === row.dataset.key); if (!x) return;
+    const p = panel(); LST.idp = x.idp; LST.regra = x.regra; LST.sit = 'erro'; LST.esc = 'total'; LST.q = ''; p.querySelector('.search').value = '';
+    LST.objeto = false;
+    row.closest('section').querySelector('.lista-slot').appendChild(p);
+    root.querySelectorAll('tr.sel').forEach(t => t.classList.remove('sel')); row.classList.add('sel');
+    carregar(); p.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  });
+
+  // ---------- status / atualização ----------
+  const aviso = (msg) => { document.getElementById('aviso').innerHTML = msg ? '<div class="warnbox"></div>' : ''; if (msg) document.querySelector('#aviso .warnbox').textContent = msg; };
+  let poll = null;
+  const checarStatus = async () => {
+    const r = await api('/api/status'); const s = r.j || {};
+    const pill = document.getElementById('statuspill');
+    if (s.estado === 'rodando') { pill.textContent = 'Medindo agora…'; if (!poll) poll = setInterval(checarStatus, 10000); return; }
+    if (poll) { clearInterval(poll); poll = null; if (s.estado === 'ok') carregarTudo(); }
+    pill.textContent = s.estado === 'erro' ? 'Última medição falhou' : 'Dados do HubSpot';
+    if (s.estado === 'erro') aviso('A última medição falhou: ' + s.erro);
+  };
+  document.getElementById('btn-run').addEventListener('click', async () => {
+    const r = await api('/api/run', {method: 'POST'});
+    aviso(r.ok ? 'Medição iniciada. Leva alguns minutos; o painel atualiza sozinho.' : ((r.j && r.j.msg) || 'Não foi possível iniciar a medição.'));
+    checarStatus();
+  });
+
+  const abrirQual = (id, titulo) => {
+    const p = panel(); LST.idp = id; LST.regra = titulo; LST.sit = 'erro'; LST.esc = 'total'; LST.q = ''; LST.objeto = false;
+    p.querySelector('.search').value = ''; document.querySelector('#qualidade .qslot').appendChild(p);
+    root.querySelectorAll('tr.sel').forEach(t => t.classList.remove('sel'));
+    carregar(); p.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  };
+  const drawQualidade = () => {
+    const box = document.getElementById('headline'); box.innerHTML = '';
+    const Q = DATA.saudaveis && DATA.saudaveis.qualidade; if (!Q) return;
+    [['E', 'Empresas', 'Em uso'], ['C', 'Contatos', 'Em uso'], ['L', 'Leads', 'Abertos']].forEach(([t, nome, tagU]) => {
+      const q = Q[t]; if (!q || !q.n) return;
+      const card = document.createElement('div'); card.className = 'kpi';
+      card.innerHTML = `<div class="kpi-top"><span class="kpi-label"></span></div><span class="kpi-value"></span><span class="kpi-sub"></span><div class="tags"><span class="tag"></span></div><div class="qbar"></div><div class="qleg"></div>`;
+      card.querySelector('.kpi-label').textContent = nome;
+      card.querySelector('.kpi-value').textContent = pct(q.zero / q.n);
+      card.querySelector('.kpi-sub').textContent = `sem nenhum problema · de ${nint(q.n)} registros`;
+      card.querySelector('.tag').textContent = `${tagU} ${pct(q.n_uso ? q.zero_uso / q.n_uso : null)}`;
+      [['0', 'Sem problemas', q.zero, 'var(--mint)'], ['1', 'Com 1 problema', q.um, 'var(--warn)'], ['2', 'Com 2 ou mais', q.dois, 'var(--danger)']].forEach(([k, rot, n, cor]) => {
+        const id = `QL${t}-0${k}`, titulo = `${nome} · ${rot}`;
+        const b = document.createElement('button'); b.style.width = (100 * n / q.n) + '%'; b.style.background = cor; b.title = `${rot}: ${nint(n)}`; b.addEventListener('click', () => abrirQual(id, titulo));
+        card.querySelector('.qbar').appendChild(b);
+        const l = document.createElement('button'); const sp = document.createElement('span'); const i = document.createElement('i'); i.style.background = cor; sp.appendChild(i); sp.appendChild(document.createTextNode(rot));
+        const bb = document.createElement('b'); bb.textContent = `${nint(n)} · ${pct(n / q.n)}`; l.appendChild(sp); l.appendChild(bb); l.addEventListener('click', () => abrirQual(id, titulo));
+        card.querySelector('.qleg').appendChild(l);
+      });
+      box.appendChild(card);
+    });
+  };
+  const render = () => {
+    fill(); drawQualidade(); drawGauge(); drawRadar(); drawTabelas(); drawOrigens();
+    const t = DATA.dhs.find(x => x.escopo === 'total'), u = DATA.dhs.find(x => x.escopo === 'uso');
+    document.getElementById('takeaway').textContent = `O DHS da base inteira está em ${nf1(t.final)} (${t.status}) e o dos registros em uso em ${nf1(u.final)}. A dimensão mais fraca é ${t.pior_dimensao}, com ${nf1(t.pior)}.`;
+    const dt = new Date(DATA.gerado_em); document.getElementById('atualizado').textContent = dt.toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'});
+    if (DATA.propriedades_faltando && DATA.propriedades_faltando.length) aviso('Propriedades não encontradas no HubSpot (regras afetadas): ' + DATA.propriedades_faltando.join(', '));
+    const H1 = HIST.map(h => ({data: h.data, total: h.dhs.find(x => x.escopo === 'total').final, uso: h.dhs.find(x => x.escopo === 'uso').final}));
+    drawLines('hist1', H1, [{k: 'total', n: 'Base inteira', c: 'var(--accent)'}, {k: 'uso', n: 'Em uso', c: VIVA}], 'hist1-leg');
+    const H2 = HIST.map(h => Object.assign({data: h.data}, Object.fromEntries(h.dimensoes.map(d => [d.dimensao, d.total]))));
+    drawLines('hist2', H2, window.DHS_DIMS.map(d => ({k: d.id, n: d.nome, c: COR[d.id]})), 'hist2-leg');
+  };
+  const carregarTudo = async () => {
+    const [d, h] = await Promise.all([api('/api/data'), api('/api/history')]);
+    HIST = h.ok ? h.j : [];
+    if (!d.ok) { aviso('Ainda não há medição. Clique em "Atualizar agora" para ler o HubSpot pela primeira vez (leva alguns minutos).'); return; }
+    DATA = d.j; render();
+    const idade = (Date.now() - new Date(DATA.gerado_em).getTime()) / 36e5;
+    if (idade > 26) aviso('A última medição tem mais de um dia. Clique em "Atualizar agora" para ler o HubSpot de novo.');
+  };
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (DATA) render(); }, 200); });
+  carregarTudo(); checarStatus();
+})();
+</script>
+
+<script src="/mapa.js"></script>
+</body></html>
