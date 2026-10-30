@@ -28,9 +28,12 @@ export default async (req) => {
     if (ix) {
       const tab = (await st.get(`tab/${ix.t}`, { type: 'json' })) || [];
       const err = new Set(ix.e);
-      rows = ix.b.map(i => ({ ...tab[i], _erro: err.has(i) }));
+      rows = ix.b.map(i => (ix.grp && ix.grp[i] != null
+        ? { grupo_duplicidade: ix.grp[i], qtd_no_grupo: ix.qtd[ix.grp[i]], ...tab[i], _erro: err.has(i), _g: ix.grp[i] }
+        : { ...tab[i], _erro: err.has(i) }));
     } else rows = (await st.get(`lists/${idp}`, { type: 'json' })) || [];
-    const sel = rows.filter(r => r._erro === sit && (!uso || r._uso));
+    let sel = rows.filter(r => r._erro === sit && (!uso || r._uso));
+    if (ix && ix.grp && sit) sel = sel.sort((a, b) => (b.qtd_no_grupo - a.qtd_no_grupo) || String(a._g).localeCompare(String(b._g)) || String(a.nome).localeCompare(String(b.nome))).map(({ _g, ...r }) => r);
     return json({ total: sel.length, rows: sel.slice(0, 10000).map(({ _erro, _uso, ...r }) => r) });
   }
   if (rota === 'run' && req.method === 'POST') {
