@@ -164,6 +164,10 @@ body{margin:0;background:#f6f8fc}
 .dhs table.dtable tr.clk td.ok{color:var(--mint-ink)}
 .dhs table.dtable tr.fora td{color:var(--text-soft)}
 .dhs .st-tag{display:inline-block;font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.dhs .objline{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 12px}
+.dhs .objpill{font-size:.8rem;padding:5px 10px;border-radius:8px;background:var(--danger-soft);color:var(--danger-ink)}
+.dhs .objpill b{margin-right:4px}
+.dhs tr.grp-h td{background:var(--slate-soft);font-weight:800;font-size:.76rem;color:var(--text-muted);white-space:normal}
 .dhs .st-tag.ok{background:var(--mint-soft);color:var(--mint-ink)}
 .dhs .st-tag.warn{background:var(--warn-soft);color:var(--warn-ink)}
 .dhs .st-tag.slate{background:var(--slate-soft);color:var(--text-muted)}
@@ -288,7 +292,7 @@ body{margin:0;background:#f6f8fc}
         <ol>
           <li><b>Escopo:</b> Empresas, Contatos e Leads (pipelines SDRs e Executivos), exceto registros internos da RankMyApp. Objetos personalizados, contratos e processos comerciais ficam no HubScore e nas monitorias operacionais. A tag roxa repete o cálculo só para os registros em uso.</li>
           <li><b>Em uso:</b> empresa com negócio, cliente ou lead aberto; contato com negócio, associado a lead ou que já foi MQL; lead aberto.</li>
-          <li><b>Nota da dimensão:</b> verificações aprovadas ÷ verificações feitas, somando as regras com status Oficial e Em validação. Na Completude, o registro inteiro conta como erro se faltar qualquer campo crítico.</li>
+          <li><b>Nota da dimensão:</b> % de registros (empresas, contatos e leads) sem nenhum problema na dimensão. Cada registro conta uma vez, mesmo que falhe em mais de uma regra. Entram as regras com status Oficial e Em validação.</li>
           <li><b>DHS:</b> Acurácia 25% · Consistência 25% · Completude 20% · Duplicidade 15% · Integridade 15%. Se a pior dimensão ficar abaixo de 70, o DHS vira 85% da média + 15% da pior; abaixo de 50, 70% + 30%.</li>
           <li><b>Faixas:</b> até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.</li>
           <li><b>Fora da nota:</b> regras em Monitoramento e Pendente e as linhas de Detalhe. Higiene, pipeline, contratos e dono do registro não fazem parte do score.</li>
@@ -310,17 +314,17 @@ window.DHS_INFO = {
   saudaveis: {t:'Registros 100% saudáveis', p:[['O que é','% de empresas e de contatos que não falham em nenhuma regra que entra na nota.'],['Como ler','É a leitura mais dura: um único erro tira o registro da conta.']]},
   uso: {t:'Registros em uso', p:[['Empresa em uso','Tem negócio, é cliente ou tem lead aberto.'],['Contato em uso','Tem negócio, está associado a um lead ou já foi MQL.'],['Para que serve','A nota é da base inteira. A tag roxa mostra quanto do problema está nos registros que o time usa hoje.']]},
   registros: {t:'Avaliados, corretos e com erro', p:[['Avaliados','Registros em que a regra se aplica. Ex.: porte × funcionários só avalia empresas com os dois campos preenchidos.'],['Corretos','Avaliados que passam na regra.'],['Com erro','Avaliados que falham na regra.'],['Status','Oficial entra na nota. Em validação entra na nota, mas a regra ainda será conferida com amostra. Detalhe, Monitoramento e Pendente ficam fora da nota.'],['Lista','Clique na linha para ver os registros, abrir no HubSpot ou baixar o CSV.']]},
-  acuracia: {t:'Acurácia · peso 25%', p:[['Pergunta','O valor preenchido está certo?'],['Regras','Empresa: porte × nº de funcionários, CNPJ (dígito verificador), país × country do Breeze, domínio × site, LinkedIn de empresa. Contato: cargo × senioridade e área × função do Breeze (de-para do enriquecimento), LinkedIn × LinkedIn do Breeze.'],['Como lê','Só avalia registros com os dois lados preenchidos. Quando divergem, a lista mostra os dois valores para o time decidir qual está certo.']]},
-  consistencia: {t:'Consistência entre objetos · peso 25%', p:[['Pergunta','A mesma informação bate entre Empresas, Contatos e Leads?'],['Regras','Contato: domínio do e-mail × empresa associada e campo Empresa (texto) × empresa associada. Lead: e-mail, cargo, telefone e empresa do lead × os do contato associado.']]},
+  acuracia: {t:'Acurácia · peso 25%', p:[['Pergunta','O valor preenchido está certo?'],['Regras','Empresa: porte × nº de funcionários, CNPJ (dígito verificador), país × country do Breeze, domínio × site e segmento × indústria do Breeze. Contato: LinkedIn × LinkedIn do Breeze.'],['Nota','% de registros sem nenhum erro de acurácia, entre os que têm algo para checar. Cada registro conta uma vez.']]},
+  consistencia: {t:'Consistência entre objetos · peso 25%', p:[['Pergunta','A mesma informação bate entre Empresas, Contatos e Leads?'],['Regras','Contato: domínio do e-mail × empresa associada e campo Empresa (texto) × empresa associada. Lead: e-mail, cargo, telefone e empresa do lead × os do contato associado.'],['Nota','% de registros sem nenhuma divergência. Cada registro conta uma vez.']]},
   completude: {t:'Completude · peso 20%', p:[['Pergunta','Os campos necessários estão preenchidos?'],['Regras','Empresa: nº de funcionários, abrangência, país, segmento, porte e domínio. Contato: cargo, área do POC e LinkedIn. Lead: origem e, nos SDRs, fonte de entrada. O registro conta como erro se faltar qualquer campo.'],['Detalhe','As linhas com ↳ mostram cada campo vazio; ajudam a priorizar e não entram na nota.']]},
-  unicidade: {t:'Duplicidade · peso 15%', p:[['Pergunta','Existe um registro por entidade?'],['Regras','Empresas: mesmo domínio, mesmo domínio raiz e mesmo nome (cada caso conta uma vez só). Contatos: mesmo LinkedIn. Leads: mais de um lead aberto do mesmo contato no mesmo pipeline.'],['Monitoramento','Contatos com mesmo nome, sobrenome e empresa ficam fora da nota até existir estratégia segura de mesclagem.']]},
-  integridade: {t:'Integridade · peso 15%', p:[['Pergunta','Os registros estão conectados como deveriam?'],['Regras','Empresa sem contato, contato sem empresa, lead sem contato e lead sem empresa.']]}
+  unicidade: {t:'Duplicidade · peso 15%', p:[['Pergunta','Existe um registro por entidade?'],['Regras','Empresas: mesmo domínio, mesmo domínio raiz ou mesmo nome. Contatos: mesmo LinkedIn.'],['Nota','% de registros que não têm cópia. Uma empresa duplicada conta uma vez, mesmo que apareça em mais de uma regra.'],['Lista','Mostra todos os registros de cada grupo juntos (ex.: os 10 Santander) para comparar e mesclar.']]},
+  integridade: {t:'Integridade · peso 15%', p:[['Pergunta','Os registros estão conectados como deveriam?'],['Regras','Empresa sem contato, contato sem empresa e lead sem contato ou sem empresa.'],['Nota','% de registros sem nenhum problema de associação. Cada registro conta uma vez.']]}
 };
 window.DHS_DIMS = [
   {id:'acuracia', nome:'Acurácia', peso:0.25, pergunta:'O valor preenchido está certo?',
    acoes:['Criar workflow que recalcula o porte pelo nº de funcionários (ACU-01).',
           'Corrigir CNPJs inválidos e validar o CNPJ no formulário (ACU-02).',
-          'Revisar as divergências com o Breeze (país, site, cargo, área, LinkedIn) pela lista, que mostra os dois valores (ACU-03 a ACU-08).']},
+          'Revisar as divergências com o Breeze (país, site, LinkedIn e segmento) pela lista, que mostra os dois valores (ACU-03, ACU-04, ACU-08 e ACU-09).']},
   {id:'consistencia', nome:'Consistência entre objetos', peso:0.25, pergunta:'A mesma informação bate entre Empresas, Contatos e Leads?',
    acoes:['Revisar a associação de contatos com e-mail ou campo Empresa diferente da empresa associada, começando pelos importados (CON-01 e CON-02).',
           'Sincronizar e-mail, cargo e telefone do lead com o contato, de preferência por workflow (CON-03 a CON-05).',
@@ -331,8 +335,7 @@ window.DHS_DIMS = [
           'Tornar cargo, área do POC e origem obrigatórios em formulários, importação e criação de lead (COM-02 e COM-03).']},
   {id:'unicidade', nome:'Duplicidade', peso:0.15, pergunta:'Existe um registro por entidade?',
    acoes:['Mesclar empresas com o mesmo domínio e depois revisar domínio raiz e nome (UNI-01 a UNI-03).',
-          'Mesclar contatos com o mesmo LinkedIn (UNI-04).',
-          'Encerrar leads abertos repetidos do mesmo contato (UNI-06).']},
+          'Mesclar contatos com o mesmo LinkedIn (UNI-04).']},
   {id:'integridade', nome:'Integridade', peso:0.15, pergunta:'Os registros estão conectados como deveriam?',
    acoes:['Associar contatos às empresas pelo domínio do e-mail (INT-02).',
           'Associar contato e empresa aos leads sem vínculo (INT-03 e INT-04).',
@@ -384,6 +387,7 @@ window.DHS_DIMS = [
       <div class="card-head"><span class="dot"></span><h3></h3><span class="info-ic" tabindex="0" data-info="${d.id}">i</span>
         <div class="grow"><span class="badge st"></span><span class="tag slate">Base inteira <span data-k="dim.${d.id}.total">—</span></span><span class="tag">Em uso <span data-k="dim.${d.id}.uso">—</span></span></div></div>
       <p class="card-sub"></p>
+      <div class="objline"></div>
       <div class="tw"><table class="dtable"><thead><tr><th>IDP</th><th>Regra</th><th>Objeto</th><th>Como é medido</th><th>Status</th>
         <th class="num">Avaliados</th><th class="num">Corretos</th><th class="num">Com erro</th><th class="num">% erro</th><th class="num">% erro em uso</th></tr></thead><tbody></tbody></table></div>
       <p class="hint">Clique em uma linha para ver a lista de registros com erro ou corretos, abrir no HubSpot ou baixar para corrigir. <span class="info-ic" tabindex="0" data-info="registros">i</span></p>
@@ -501,6 +505,10 @@ window.DHS_DIMS = [
       const r = DATA.dimensoes.find(x => x.dimensao === d.id);
       root.querySelectorAll(`a[href="#dim-${d.id}"] .badge.st, #dim-${d.id} .badge.st`).forEach(b => { b.className = 'badge st ' + badgeCls(stOf(r.total)); b.textContent = stOf(r.total); });
       const pb = root.querySelector(`a[href="#dim-${d.id}"] .pbar > div`); pb.style.width = Math.max(0, Math.min(100, r.total)) + '%';
+      const ol = document.querySelector(`#dim-${d.id} .objline`); ol.innerHTML = '';
+      (r.objetos || []).forEach(o => { const s = document.createElement('span'); s.className = 'objpill';
+        const b = document.createElement('b'); b.textContent = o.objeto; s.appendChild(b);
+        s.appendChild(document.createTextNode(` ${nint(o.com_erro)} de ${nint(o.avaliados)} com problema · ${pct(o.avaliados ? o.com_erro / o.avaliados : 0)}`)); ol.appendChild(s); });
       const body = document.querySelector(`#dim-${d.id} tbody`); body.innerHTML = '';
       DATA.idps.filter(x => x.dimensao === d.id).forEach(x => {
         const tr = document.createElement('tr'); tr.dataset.key = x.idp;
@@ -517,7 +525,7 @@ window.DHS_DIMS = [
   };
 
   // ---------- listas ----------
-  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
+  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', qtd_no_grupo: 'Registros no grupo', industria_breeze: 'Indústria (Breeze)', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
   const LST = {idp: null, regra: '', sit: 'erro', esc: 'total', q: '', rows: [], total: 0, panel: null, objeto: false};
   const panel = () => {
     if (LST.panel) return LST.panel;
@@ -539,7 +547,9 @@ window.DHS_DIMS = [
     const head = p.querySelector('thead tr'), body = p.querySelector('tbody'); head.innerHTML = ''; body.innerHTML = '';
     const rows = filtradas(), cols = LST.rows[0] ? Object.keys(LST.rows[0]) : [];
     cols.forEach(c => { const th = document.createElement('th'); th.textContent = HEAD[c] || c; head.appendChild(th); });
-    rows.slice(0, 500).forEach(rw => { const tr = document.createElement('tr');
+    let gAnt = null;
+    rows.slice(0, 500).forEach(rw => { if (rw.grupo_duplicidade !== undefined && rw.qtd_no_grupo && rw.grupo_duplicidade !== gAnt) { gAnt = rw.grupo_duplicidade; const gh = document.createElement('tr'); gh.className = 'grp-h'; const gtd = document.createElement('td'); gtd.colSpan = cols.length; gtd.textContent = `Grupo: ${rw.grupo_duplicidade} · ${rw.qtd_no_grupo} registros`; gh.appendChild(gtd); body.appendChild(gh); }
+      const tr = document.createElement('tr');
       cols.forEach(c => { const td = document.createElement('td');
         if (c === 'link_hubspot' && rw[c]) { const a = document.createElement('a'); a.href = rw[c]; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir'; td.appendChild(a); } else td.textContent = rw[c] == null ? '' : rw[c];
         tr.appendChild(td); });
