@@ -3,6 +3,7 @@
 export const PORTAL = '44530090';
 
 // Escopo do score: Empresas, Contatos e Leads (SDRs e Executivos).
+export const TETO_OBJETO = 0.7; // nenhum objeto pesa mais que 70% numa dimensão
 export const PESOS = { acuracia: 0.25, consistencia: 0.25, completude: 0.20, unicidade: 0.15, integridade: 0.15 };
 
 export const LEAD_PIPELINES = ['739923376', '916004981']; // SDRs, Executivos
@@ -35,8 +36,9 @@ export const PROPS = {
     jobtitle: ['jobtitle'], seniority: ['hs_seniority'], role: ['hs_role'], subrole: ['hs_sub_role'], linkedin: ['linkedin'], linkedin_alt: ['hs_linkedin_url'],
     telefone: ['phone'], celular: ['mobilephone'], lifecycle: ['lifecyclestage']
   },
-  deals: { nome: ['dealname'], pipeline: ['pipeline'], etapa: ['dealstage'], ganho: ['hs_is_closed_won'], cnpj: ['cnpj'], fechamento: ['closedate'] },
-  leads: { nome: ['hs_lead_name'], pipeline: ['hs_pipeline'], etapa: ['hs_pipeline_stage'], origem: ['origem'], fonte_de_entrada: ['fonte_de_entrada'], operacao: ['operacao'],
+  deals: { operacao: ['operacao'], intencao: ['intencao_de_compra', 'intencao_de_compra___negocios'], nome: ['dealname'], pipeline: ['pipeline'], etapa: ['dealstage'], ganho: ['hs_is_closed_won'], cnpj: ['cnpj'], fechamento: ['closedate'] },
+  leads: { nome: ['hs_lead_name'], pipeline: ['hs_pipeline'], etapa: ['hs_pipeline_stage'], origem: ['origem'], operacao: ['operacao'], intencao: ['intencao_de_compra'], agendamento: ['data_do_agendamento'],
+    entrou_sdr: ['hs_v2_date_entered_1076481948'], entrou_exec: ['hs_v2_date_entered_1395409172'],
     email: ['email'], cargo: ['cargo'], telefone: ['telefone'] },
   clientes: { nome: ['nome_do_cliente', 'hs_name'], etapa: ['hs_pipeline_stage'], mrr: ['valor_do_mrr', 'valor_mrr'], cnpj: ['cnpj', 'cnpj_do_cliente'],
     porte: ['porte_da_empresa', 'porte', 'colaboradores'], segmento: ['segmento_da_empresa', 'segmento'], criado: ['hs_createdate'] },

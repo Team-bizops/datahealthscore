@@ -14,18 +14,19 @@ export async function runMedicao() {
     const token = Netlify.env.get('HUBSPOT_TOKEN');
     if (!token) throw new Error('Variável de ambiente HUBSPOT_TOKEN não configurada.');
     const hs = hubspot(token);
-    const types = { companies: 'companies', contacts: 'contacts', leads: 'leads' };
+    const types = { companies: 'companies', contacts: 'contacts', leads: 'leads', deals: 'deals' };
     const P = {}, faltando = [];
     for (const [k, type] of Object.entries(types)) { const r = await hs.resolveProps(type, PROPS[k]); P[k] = r.map; faltando.push(...r.missing); }
     const props = (k) => Object.values(P[k]);
     const t0 = Date.now();
-    const [companies, contacts, leads] = await Promise.all([
+    const [companies, contacts, leads, deals] = await Promise.all([
       hs.listAll('companies', props('companies')),
       hs.listAll('contacts', props('contacts'), ['companies']),
-      hs.listAll('leads', props('leads'), ['contacts', 'companies'])
+      hs.listAll('leads', props('leads'), ['contacts', 'companies', 'deals']),
+      hs.listAll('deals', props('deals'))
     ]);
     console.log(`HubSpot lido em ${Math.round((Date.now() - t0) / 1000)}s: ${companies.length} empresas, ${contacts.length} contatos, ${leads.length} leads`);
-    const { summary, lists, tabelas } = computeAll({ companies, contacts, leads, P });
+    const { summary, lists, tabelas } = computeAll({ companies, contacts, leads, deals, P });
     const mp = computeMapa({ companies, contacts, leads, P });
     summary.mapa = mp.mapa;
     const fim = new Date();
