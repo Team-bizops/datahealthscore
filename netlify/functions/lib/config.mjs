@@ -33,7 +33,7 @@ export const PROPS = {
     nome: ['firstname'], sobrenome: ['lastname'], email: ['email'], empresa: ['company'], cargo: ['cargo', 'jobtitle'],
     area_poc: ['area_do_poc'], origem: ['hs_object_source'], n_negocios: ['num_associated_deals'],
     jobtitle: ['jobtitle'], seniority: ['hs_seniority'], role: ['hs_role'], subrole: ['hs_sub_role'], linkedin: ['linkedin'], linkedin_alt: ['hs_linkedin_url'],
-    telefone: ['phone'], celular: ['mobilephone']
+    telefone: ['phone'], celular: ['mobilephone'], lifecycle: ['lifecyclestage']
   },
   deals: { nome: ['dealname'], pipeline: ['pipeline'], etapa: ['dealstage'], ganho: ['hs_is_closed_won'], cnpj: ['cnpj'], fechamento: ['closedate'] },
   leads: { nome: ['hs_lead_name'], pipeline: ['hs_pipeline'], etapa: ['hs_pipeline_stage'], origem: ['origem'], fonte_de_entrada: ['fonte_de_entrada'], operacao: ['operacao'],

@@ -209,6 +209,32 @@ export function computeAll(d) {
       tel_lead: g(l, 'leads', 'telefone') || '', tel_contato: ct ? (g(ct, 'contacts', 'telefone') || g(ct, 'contacts', 'celular') || '') : '' };
   });
 
+  // ---------- consistência do lado da empresa (CON-08, CON-10, CON-11) ----------
+  const RANK = { subscriber: 1, lead: 2, marketingqualifiedlead: 3, salesqualifiedlead: 4, opportunity: 5, customer: 6, evangelist: 7 };
+  const ctsDaEmpresa = new Map();
+  for (const x of C) for (const e of (contactCompanies.get(x.id) || [])) { if (!ctsDaEmpresa.has(e)) ctsDaEmpresa.set(e, []); ctsDaEmpresa.get(e).push(x.id); }
+  const leadBase = new Set(), leadErr = new Set();
+  for (const l of leadsF) {
+    const ct = assoc(l, 'contact').map(i => ctById.get(i)).find(Boolean); if (!ct) continue;
+    const ctEmps = contactCompanies.get(ct.id) || [];
+    for (const e of assoc(l, 'compan')) { if (!comp.has(e)) continue; leadBase.add(e); if (!ctEmps.includes(e)) leadErr.add(e); }
+  }
+  for (const x of E) {
+    const c = comp.get(x.id), nm = normName(g(c, 'companies', 'nome')), lifeE = RANK[(g(c, 'companies', 'lifecycle') || '').toLowerCase()];
+    const cs = (ctsDaEmpresa.get(x.id) || []).map(i => ctById.get(i));
+    const txts = cs.map(k => normName(g(k, 'contacts', 'empresa'))).filter(t => t.length >= 3);
+    const ranks = cs.map(k => RANK[(g(k, 'contacts', 'lifecycle') || '').toLowerCase()]).filter(Boolean);
+    x.f.nome_base = nm.length >= 3 && txts.length > 0;
+    x.f.nome_err = x.f.nome_base && !txts.some(t => t.includes(nm) || nm.includes(t));
+    x.f.lead_base = leadBase.has(x.id); x.f.lead_err = leadErr.has(x.id);
+    x.f.life_base = !!lifeE && ranks.length > 0;
+    x.f.life_err = x.f.life_base && lifeE !== Math.max(...ranks);
+    x.f.con_base = x.f.nome_base || x.f.lead_base || x.f.life_base;
+    x.f.con = x.f.nome_err || x.f.lead_err || x.f.life_err;
+    x.f.saudavel = x.f.saudavel && !x.f.con;
+    x.row.lifecycle_contatos = ranks.length ? Object.keys(RANK).find(k => RANK[k] === Math.max(...ranks)) : '';
+  }
+
   // ---------- IDPs ----------
   const cnt = (arr, pred) => arr.reduce((s, x) => s + (pred(x) ? 1 : 0), 0);
   const sc = (arr, base, err) => ({ tb: cnt(arr, base), te: cnt(arr, x => base(x) && err(x)), ub: cnt(arr, x => x.uso && base(x)), ue: cnt(arr, x => x.uso && base(x) && err(x)) });
@@ -250,6 +276,9 @@ export function computeAll(d) {
   add('CON-03', 'consistencia', 'E-mail do lead diferente do contato', 'Lead', 'Oficial', scL(x => x.f.email_base, x => x.f.email_div), 'email do lead × email do contato associado.', listL(x => x.f.email_base, x => x.f.email_div, ['email_lead', 'email_contato']));
   add('CON-04', 'consistencia', 'Cargo do lead diferente do contato', 'Lead', 'Em validação', scL(x => x.f.cargo_base, x => x.f.cargo_div), 'cargo do lead × cargo do contato associado.', listL(x => x.f.cargo_base, x => x.f.cargo_div, ['cargo_lead', 'cargo_contato']));
   add('CON-05', 'consistencia', 'Telefone do lead diferente do contato', 'Lead', 'Em validação', scL(x => x.f.tel_base, x => x.f.tel_div), 'Últimos 8 dígitos do telefone do lead × telefone ou celular do contato.', listL(x => x.f.tel_base, x => x.f.tel_div, ['tel_lead', 'tel_contato']));
+  add('CON-08', 'consistencia', 'Nome da empresa diferente do campo "Empresa" dos contatos', 'Empresa', 'Em validação', sc(E, x => x.f.nome_base, x => x.f.nome_err), 'Nenhum contato associado tem no campo company (texto) um nome compatível com o da empresa (sem acento, espaço e pontuação; um contido no outro passa).', listE(x => x.f.nome_base, x => x.f.nome_err));
+  add('CON-10', 'consistencia', 'Empresa dos leads diferente da empresa dos contatos', 'Empresa', 'Em validação', sc(E, x => x.f.lead_base, x => x.f.lead_err), 'A empresa está associada a pelo menos um lead (SDRs ou Executivos) cujo contato não está associado a ela.', listE(x => x.f.lead_base, x => x.f.lead_err));
+  add('CON-11', 'consistencia', 'Lifecycle da empresa diferente do dos contatos', 'Empresa', 'Em validação', sc(E, x => x.f.life_base, x => x.f.life_err), 'Lifecycle da empresa diferente do lifecycle mais avançado entre os seus contatos (subscriber < lead < MQL < SQL < opportunity < customer < evangelist).', listE(x => x.f.life_base, x => x.f.life_err));
   add('CON-06', 'consistencia', 'Empresa do lead diferente da empresa do contato', 'Lead', 'Oficial', scL(x => x.f.emp_base, x => x.f.emp_div), 'Empresa associada ao lead × empresas associadas ao contato do lead.', listL(x => x.f.emp_base, x => x.f.emp_div));
   // Completude
   add('COM-01', 'completude', 'Empresa com algum campo vazio', 'Empresa', 'Oficial', sc(E, all, x => x.f.com), 'Conta como erro se faltar: nº de funcionários, abrangência, país, segmento, porte ou domínio.', listE(all, x => x.f.com));
@@ -279,7 +308,7 @@ export function computeAll(d) {
   // Nota por registro: em cada objeto, o registro conta uma vez e é erro se falhar em qualquer regra da dimensão
   const REG = {
     acuracia: [['Empresas', E, x => x.f.acu_base, x => x.f.acu], ['Contatos', C, x => x.f.li_base, x => x.f.acu]],
-    consistencia: [['Contatos', C, x => x.f.dominio_base || x.f.empresa_base, x => x.f.con], ['Leads', LD, x => x.f.email_base || x.f.cargo_base || x.f.tel_base || x.f.emp_base, x => x.f.con]],
+    consistencia: [['Empresas', E, x => x.f.con_base, x => x.f.con], ['Contatos', C, x => x.f.dominio_base || x.f.empresa_base, x => x.f.con], ['Leads', LD, x => x.f.email_base || x.f.cargo_base || x.f.tel_base || x.f.emp_base, x => x.f.con]],
     completude: [['Empresas', E, all, x => x.f.com], ['Contatos', C, all, x => x.f.com], ['Leads', LD, all, x => x.f.com]],
     unicidade: [['Empresas', E, all, x => x.f.dup], ['Contatos', C, all, x => x.f.dup_li]],
     integridade: [['Empresas', E, all, x => x.f.sem_contato], ['Contatos', C, all, x => x.f.sem_empresa], ['Leads', LD, all, x => x.f.sem_contato || x.f.sem_empresa]]
@@ -312,7 +341,7 @@ export function computeAll(d) {
   };
   // ---------- origens ofensoras (empresas e contatos) ----------
   const origemNome = { CRM_UI: 'UI de CRM', IMPORT: 'Importação', INTEGRATION: 'Integração', FORM: 'Formulários', CRM_SETTING: 'Configuração do CRM', EXTENSION: 'Extensão', EMAIL_INTEGRATION: 'Integração de e-mail', BCC_TO_CRM: 'BCC para o CRM', INTERNAL_PROCESSING: 'Processamento interno', AUTOMATION_PLATFORM: 'Automação da plataforma', API: 'API', MOBILE_IOS: 'App iOS', MOBILE_ANDROID: 'App Android', '(vazio)': 'Sem origem' };
-  const errDim = { acuracia: (x) => x.f.acu, consistencia: (x) => x.f.con, completude: (x) => x.f.com, unicidade: (x, t) => (t === 'E' ? x.f.dup : x.f.dup_li), integridade: (x, t) => (t === 'E' ? x.f.sem_contato : x.f.sem_empresa) };
+  const errDim = { acuracia: (x) => x.f.acu, consistencia: (x) => !!x.f.con, completude: (x) => x.f.com, unicidade: (x, t) => (t === 'E' ? x.f.dup : x.f.dup_li), integridade: (x, t) => (t === 'E' ? x.f.sem_contato : x.f.sem_empresa) };
   const origens = [];
   for (const [dim, fn] of Object.entries(errDim)) {
     const acc = {};
