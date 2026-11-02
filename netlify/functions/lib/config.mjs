@@ -4,7 +4,7 @@ export const PORTAL = '44530090';
 
 // Escopo do score: Empresas, Contatos e Leads (SDRs e Executivos).
 export const TETO_OBJETO = 0.7; // nenhum objeto pesa mais que 70% numa dimensão
-export const PESOS = { acuracia: 0.25, consistencia: 0.25, completude: 0.20, unicidade: 0.15, integridade: 0.15 };
+export const PESOS = { acuracia: 0.25, consistencia: 0.20, completude: 0.20, unicidade: 0.20, integridade: 0.15 };
 
 export const LEAD_PIPELINES = ['739923376', '916004981']; // SDRs, Executivos
 export const LEAD_AGENDADO = ['1076481948', '1395409172']; // Reunião Agendada (SDRs), Agendado (Executivos)

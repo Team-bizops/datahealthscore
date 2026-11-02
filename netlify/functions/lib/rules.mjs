@@ -346,23 +346,61 @@ export function computeAll(d) {
     }
     return w;
   };
+  // DHS 2.0 híbrido: por objeto e dimensão, nota = 80% conformidade média dos IDPs + 20% saúde dos registros
+  const OBJ_IDP = { Empresas: 'Empresa', Contatos: 'Contato', Leads: 'Lead' };
+  const conformidade = (dim, objeto, esc) => {
+    const b = esc === 'total' ? 'total_base' : 'uso_base', e = esc === 'total' ? 'total' : 'uso';
+    const rs = IDP.filter(r => r.nota && r.dimensao === dim && r.objeto === OBJ_IDP[objeto] && r[b] > 0);
+    return rs.length ? rs.reduce((a, r) => a + 100 * (r[b] - r[e]) / r[b], 0) / rs.length : null;
+  };
+  const penalidade = (media, pior) => (pior < 50 ? 0.7 * media + 0.3 * pior : pior < 70 ? 0.85 * media + 0.15 * pior : media);
+  const statusDe = (v) => (v <= 50 ? 'Crítico' : v <= 70 ? 'Atenção' : v <= 85 ? 'Bom' : v <= 95 ? 'Saudável' : 'Excelente');
   const dimensoes = Object.keys(PESOS).map(id => {
     const objetos = REG[id].map(([objeto, arr, base, err, regras]) => {
       let av = 0, er = 0, avu = 0, eru = 0;
       for (const x of arr) { if (!base(x)) continue; const e = err(x), u = usoDe(x); av++; if (e) er++; if (u) { avu++; if (e) eru++; } }
-      return { objeto, regras, avaliados: av, com_erro: er, avaliados_uso: avu, com_erro_uso: eru, nota: av ? 100 * (av - er) / av : null, nota_uso: avu ? 100 * (avu - eru) / avu : null };
+      const saude = av ? 100 * (av - er) / av : null, saude_uso = avu ? 100 * (avu - eru) / avu : null;
+      const conf = conformidade(id, objeto, 'total'), conf_uso = conformidade(id, objeto, 'uso');
+      const hib = (c, h) => (h == null ? null : 0.8 * (c == null ? h : c) + 0.2 * h);
+      return { objeto, regras, avaliados: av, com_erro: er, avaliados_uso: avu, com_erro_uso: eru,
+        saude, saude_uso, conformidade: conf, conformidade_uso: conf_uso, nota: hib(conf, saude), nota_uso: hib(conf_uso, saude_uso) };
     });
-    const calc = (k) => { const ok = objetos.filter(o => o[k] != null); const w = pesos(ok.map(o => o.regras)); ok.forEach((o, i) => { o[k === 'nota' ? 'peso' : 'peso_uso'] = w[i]; }); return ok.reduce((a, o, i) => a + w[i] * o[k], 0); };
-    const total = calc('nota'), uso = calc('nota_uso');
-    return { dimensao: id, nome: nomes[id], peso: PESOS[id], total, uso, objetos, impacto_total: PESOS[id] * (100 - total), impacto_uso: PESOS[id] * (100 - uso) };
+    const calc = (k, pk) => { const ok = objetos.filter(o => o[k] != null); const w = pesos(ok.map(o => o.regras)); if (pk) ok.forEach((o, i) => { o[pk] = w[i]; }); return ok.reduce((a, o, i) => a + w[i] * o[k], 0); };
+    const total = calc('nota', 'peso'), uso = calc('nota_uso', 'peso_uso');
+    return { dimensao: id, nome: nomes[id], peso: PESOS[id], total, uso, objetos,
+      conformidade: calc('conformidade'), conformidade_uso: calc('conformidade_uso'), saude: calc('saude'), saude_uso: calc('saude_uso'),
+      impacto_total: PESOS[id] * (100 - total), impacto_uso: PESOS[id] * (100 - uso) };
   });
   const dhs = ['total', 'uso'].map(esc => {
     const media = dimensoes.reduce((s, x) => s + x.peso * x[esc], 0);
     const pior = dimensoes.reduce((m, x) => x[esc] < m[esc] ? x : m, dimensoes[0]);
-    const final = media; // sem penalidade da pior dimensão nesta versão
-    const status = final <= 50 ? 'Crítico' : final <= 70 ? 'Atenção' : final <= 85 ? 'Bom' : final <= 95 ? 'Saudável' : 'Excelente';
-    return { escopo: esc, media, pior: pior[esc], pior_dimensao: pior.nome, final, status, versao: '2.0' };
+    const final = penalidade(media, pior[esc]);
+    return { escopo: esc, media, pior: pior[esc], pior_dimensao: pior.nome, final, impacto_penalidade: media - final, penalizou: final < media - 1e-9, status: statusDe(final), versao: '2.0' };
   });
+  // Validação: mesmos registros, quatro metodologias
+  const PESOS_ANT = { acuracia: 0.25, consistencia: 0.25, completude: 0.20, unicidade: 0.15, integridade: 0.15 };
+  const cenario = (campo, campoUso, pesosD, pen) => ['total', 'uso'].map(esc => {
+    const notas = dimensoes.map(d => ({ id: d.dimensao, v: esc === 'total' ? d[campo] : d[campoUso] }));
+    const media = notas.reduce((a, n) => a + pesosD[n.id] * n.v, 0), pior = Math.min(...notas.map(n => n.v));
+    return { escopo: esc, dimensoes: Object.fromEntries(notas.map(n => [n.id, n.v])), media, final: pen ? penalidade(media, pior) : media };
+  });
+  const comparativo = {
+    atual: cenario('saude', 'saude_uso', PESOS_ANT, false),
+    cenario2: cenario('saude', 'saude_uso', PESOS, false),
+    hibrido_sem_penalidade: cenario('total', 'uso', PESOS, false),
+    hibrido_com_penalidade: cenario('total', 'uso', PESOS, true)
+  };
+  // Cobertura da elegibilidade dos leads (passou por Reunião Agendada/Agendado)
+  const elegibilidade = {};
+  for (const [pid, pn] of [['739923376', 'SDRs'], ['916004981', 'Executivos']]) {
+    const ls = leadsF.filter(l => String(g(l, 'leads', 'pipeline')) === pid);
+    const etapa = (l) => LEAD_AGENDADO.includes(String(g(l, 'leads', 'etapa')));
+    const kEnt = pn === 'SDRs' ? 'entrou_sdr' : 'entrou_exec';
+    elegibilidade[pn] = { leads: ls.length,
+      elegiveis: ls.filter(l => etapa(l) || !vazio(g(l, 'leads', 'agendamento')) || !vazio(g(l, 'leads', 'entrou_sdr')) || !vazio(g(l, 'leads', 'entrou_exec'))).length,
+      pela_etapa_atual: ls.filter(etapa).length, pela_data_agendamento: ls.filter(l => !vazio(g(l, 'leads', 'agendamento'))).length,
+      pela_data_entrada: ls.filter(l => !vazio(g(l, 'leads', kEnt))).length, data_entrada_disponivel: !!P.leads[kEnt] };
+  }
   const pct = (a, b) => (b ? a / b : null);
   // ---------- qualidade dos registros: nº de regras (da nota) em que cada registro falha ----------
   const ARR = { E, C, L: LD };
@@ -395,5 +433,5 @@ export function computeAll(d) {
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
   const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
-  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes }, lists, tabelas: TAB };
+  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, metodologia: 'DHS 2.0 · híbrido 80/20 · pesos 25/20/20/20/15 · penalidade da pior dimensão' }, lists, tabelas: TAB };
 }

@@ -34,7 +34,7 @@ export async function runMedicao() {
     const st2 = store(); // token novo para gravar no fim da medição
     await st2.setJSON('latest', out);
     const dia = fim.toISOString().slice(0, 10);
-    await st2.setJSON(`history/${dia}`, { data: dia, gerado_em: out.gerado_em, dhs: out.dhs, dimensoes: out.dimensoes.map(d => ({ dimensao: d.dimensao, nome: d.nome, total: d.total, uso: d.uso })) });
+    await st2.setJSON(`history/${dia}`, { data: dia, gerado_em: out.gerado_em, versao: '2.0', dhs: out.dhs, dimensoes: out.dimensoes.map(d => ({ dimensao: d.dimensao, nome: d.nome, total: d.total, uso: d.uso })) });
     for (const [t, rows] of Object.entries(tabelas)) await st2.setJSON(`tab/${t}`, rows);
     await Promise.all(Object.entries(lists).map(([idp, ix]) => st2.setJSON(`idx/${idp}`, ix)));
     await Promise.all(Object.entries(mp.lists).map(([idp, rows]) => st2.setJSON(`lists/${idp}`, rows)));
