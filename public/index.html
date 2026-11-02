@@ -219,7 +219,7 @@ body{margin:0;background:#f6f8fc}
               <div class="tags" style="justify-content:center"><span class="tag">Em uso <span data-k="dhs.uso.final">—</span></span></div></div>
             <div><span class="kpi-label">Status</span><span class="badge" id="st-total">—</span>
               <div class="kpi-sub">Média antes da penalidade: <span data-k="dhs.total.media">—</span></div>
-              <div class="kpi-sub">Penalidade: −<span data-k="dhs.total.impacto_penalidade">—</span> pts · pior: <span data-k="dhs.total.pior_dimensao">—</span></div></div>
+              <div class="kpi-sub">Penalidade: −<span data-k="dhs.total.impacto_penalidade">—</span> pts · abaixo de 80: <span data-k="dhs.total.pior_dimensao">—</span></div></div>
           </div>
         </div>
       </div>
@@ -291,8 +291,8 @@ body{margin:0;background:#f6f8fc}
         <ol>
           <li><b>Escopo:</b> Empresas, Contatos e Leads (pipelines SDRs e Executivos), exceto registros internos da RankMyApp. Objetos personalizados, contratos e processos comerciais ficam no HubScore e nas monitorias operacionais. A tag roxa repete o cálculo só para os registros em uso.</li>
           <li><b>Em uso:</b> empresa com negócio, cliente ou lead aberto; contato com negócio, associado a lead ou que já foi MQL; lead aberto.</li>
-          <li><b>Nota da dimensão (DHS 2.0):</b> para cada objeto, 80% da conformidade média dos IDPs oficiais (cada regra só avalia os registros elegíveis) + 20% da saúde dos registros (% de registros sem nenhum erro nas regras da dimensão; cada registro conta uma vez). Os objetos são combinados pelo nº de regras de cada um, com teto de 70%.</li>
-          <li><b>DHS:</b> Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%. Penalidade da pior dimensão: abaixo de 70, o DHS vira 85% da média + 15% da pior; abaixo de 50, 70% + 30%. Base inteira e registros em uso são calculados separadamente. Completude avalia só campos do registro; associações obrigatórias contam só na Integridade. Nova baseline em 30/10/2026: medições anteriores não são comparáveis.</li>
+          <li><b>Nota da dimensão (DHS 2.0):</b> % de registros sem nenhum erro nas regras oficiais da dimensão (cada registro conta uma vez; cada regra só avalia os registros elegíveis). Os objetos são combinados pelo nº de regras de cada um, com teto de 70%. A conformidade média dos IDPs aparece só como informação.</li>
+          <li><b>DHS:</b> média ponderada (Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%) menos a penalidade cumulativa: cada dimensão abaixo de 80 desconta peso × (80 − nota). Base inteira e registros em uso são calculados separadamente. Completude avalia só campos do registro; associações contam só na Integridade. Nova baseline em 02/11/2026.</li>
           <li><b>Faixas:</b> até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.</li>
           <li><b>Fora da nota:</b> regras em Monitoramento e Pendente e as linhas de Detalhe. Higiene, pipeline, contratos e dono do registro não fazem parte do score.</li>
         </ol>
@@ -306,7 +306,7 @@ window.DHS_INFO = {
   sau_empresas: {t:'Empresas 100% saudáveis', p:[['O que é','% de empresas que não falham em nenhuma regra da nota: acurácia, campos, duplicidade e contato associado.'],['Tag roxa','O mesmo cálculo só para as empresas em uso (negócio, cliente ou lead aberto).']]},
   sau_contatos: {t:'Contatos 100% saudáveis', p:[['O que é','% de contatos que não falham em nenhuma regra da nota: acurácia, consistência, campos, LinkedIn duplicado e empresa associada.'],['Tag roxa','O mesmo cálculo só para os contatos em uso (negócio, lead ou já foi MQL).']]},
   sau_leads: {t:'Leads 100% saudáveis', p:[['O que é','% de leads dos pipelines SDRs e Executivos sem erro: contato e empresa associados, origem preenchida, dados iguais aos do contato e sem lead aberto duplicado.'],['Tag','O mesmo cálculo só para os leads abertos.']]},
-  gauge: {t:'Data Health Score 2.0', p:[['Nota da dimensão','Para cada objeto: 80% conformidade média dos IDPs (regras oficiais, só registros elegíveis) + 20% saúde dos registros (% sem nenhum erro nas regras da dimensão). Os objetos são combinados pelo nº de regras, com teto de 70%.'],['DHS','Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%. Se a pior dimensão ficar abaixo de 70: 85% da média + 15% da pior; abaixo de 50: 70% + 30%.'],['Baseline','Metodologia nova a partir de 30/10/2026: não compare com medições anteriores.']]},
+  gauge: {t:'Data Health Score 2.0', p:[['Nota da dimensão','% de registros sem nenhum erro nas regras da dimensão, por objeto, combinando os objetos pelo nº de regras (teto de 70%).'],['DHS','Média ponderada: Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%.'],['Penalidade','Cada dimensão abaixo de 80 desconta de novo o seu déficit: peso × (80 − nota). Várias dimensões fracas somam penalidade.'],['Baseline','Metodologia nova a partir de 02/11/2026.']]},
   radar: {t:'Score por dimensão', p:[['Como ler','Cada eixo é a nota de uma dimensão de 0 a 100. A área preenchida é a base inteira; a linha tracejada roxa são os registros em uso.']]},
   impacto: {t:'Peso e impacto', p:[['Peso','Quanto a dimensão vale no DHS.'],['Impacto','Pontos que a dimensão tira do DHS: peso × (100 − nota). Mostra onde corrigir rende mais.']]},
   origens: {t:'Top 3 origens ofensoras', p:[['O que é','As 3 origens de criação do registro (Record source do HubSpot) que concentram mais erros de empresas e contatos em cada dimensão, na base inteira.']]},
@@ -507,7 +507,7 @@ window.DHS_DIMS = [
       root.querySelectorAll(`a[href="#dim-${d.id}"] .badge.st, #dim-${d.id} .badge.st`).forEach(b => { b.className = 'badge st ' + badgeCls(stOf(r.total)); b.textContent = stOf(r.total); });
       const pb = root.querySelector(`a[href="#dim-${d.id}"] .pbar > div`); pb.style.width = Math.max(0, Math.min(100, r.total)) + '%';
       const ol = document.querySelector(`#dim-${d.id} .objline`); ol.innerHTML = '';
-      { const s0 = document.createElement('span'); s0.className = 'objpill'; s0.style.background = 'var(--accent-soft)'; s0.style.color = 'var(--accent)'; s0.textContent = `Conformidade dos IDPs ${nf1(r.conformidade)} × 80% + Saúde dos registros ${nf1(r.saude)} × 20% = nota ${nf1(r.total)} · peso ${Math.round(100 * r.peso)}% · tira ${nf1(r.impacto_total)} pts do DHS`; ol.appendChild(s0); }
+      { const s0 = document.createElement('span'); s0.className = 'objpill'; s0.style.background = 'var(--accent-soft)'; s0.style.color = 'var(--accent)'; s0.textContent = `Nota ${nf1(r.total)} = % de registros sem erro na dimensão · peso ${Math.round(100 * r.peso)}% · tira ${nf1(r.impacto_total)} pts do DHS${r.total < 80 ? ` e mais ${nf1(r.peso * (80 - r.total))} pts de penalidade (abaixo de 80)` : ''} · conformidade média dos IDPs: ${nf1(r.conformidade)} (informativo)`; ol.appendChild(s0); }
       (r.objetos || []).forEach(o => { const s = document.createElement('span'); s.className = 'objpill';
         const b = document.createElement('b'); b.textContent = o.objeto; s.appendChild(b);
         s.appendChild(document.createTextNode(` · peso ${o.peso != null ? Math.round(100 * o.peso) + '%' : '—'} · conformidade ${nf1(o.conformidade)} · saúde ${nf1(o.saude)} · nota ${nf1(o.nota)} · ${nint(o.com_erro)} de ${nint(o.avaliados)} registros com problema`)); ol.appendChild(s); });
