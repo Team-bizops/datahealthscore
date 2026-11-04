@@ -358,6 +358,15 @@ export function computeAll(d) {
   const penalidadeDims = (notas) => notas.reduce((a, n) => a + (n.v < LIMITE ? PESOS[n.id] * (LIMITE - n.v) : 0), 0);
   const penalidade = (media, pior) => (pior < 50 ? 0.7 * media + 0.3 * pior : pior < 70 ? 0.85 * media + 0.15 * pior : media);
   const statusDe = (v) => (v <= 50 ? 'Crítico' : v <= 70 ? 'Atenção' : v <= 85 ? 'Bom' : v <= 95 ? 'Saudável' : 'Excelente');
+  // Peso dos objetos: fixo (Empresas 40 · Contatos 40 · Leads 20) em Consistência, Completude e Integridade;
+  // nas demais, pelo nº de regras com teto de 70%
+  const PESO_OBJ = { Empresas: 0.4, Contatos: 0.4, Leads: 0.2 };
+  const FIXOS = ['consistencia', 'completude', 'integridade'];
+  const pesoObjetos = (id, ok) => {
+    if (!FIXOS.includes(id)) return pesos(ok.map(o => o.regras));
+    const t = ok.reduce((a, o) => a + PESO_OBJ[o.objeto], 0);
+    return ok.map(o => (t ? PESO_OBJ[o.objeto] / t : 0));
+  };
   const dimensoes = Object.keys(PESOS).map(id => {
     const objetos = REG[id].map(([objeto, arr, base, err, regras]) => {
       let av = 0, er = 0, avu = 0, eru = 0;
@@ -368,7 +377,7 @@ export function computeAll(d) {
       return { objeto, regras, avaliados: av, com_erro: er, avaliados_uso: avu, com_erro_uso: eru,
         saude, saude_uso, conformidade: conf, conformidade_uso: conf_uso, nota: hib(conf, saude), nota_uso: hib(conf_uso, saude_uso) };
     });
-    const calc = (k, pk) => { const ok = objetos.filter(o => o[k] != null); const w = pesos(ok.map(o => o.regras)); if (pk) ok.forEach((o, i) => { o[pk] = w[i]; }); return ok.reduce((a, o, i) => a + w[i] * o[k], 0); };
+    const calc = (k, pk) => { const ok = objetos.filter(o => o[k] != null); const w = pesoObjetos(id, ok); if (pk) ok.forEach((o, i) => { o[pk] = w[i]; }); return ok.reduce((a, o, i) => a + w[i] * o[k], 0); };
     const hibrida = calc('nota', 'peso'), hibrida_uso = calc('nota_uso', 'peso_uso');
     const total = calc('saude'), uso = calc('saude_uso');
     return { dimensao: id, nome: nomes[id], peso: PESOS[id], total, uso, objetos, hibrida, hibrida_uso,
@@ -429,6 +438,15 @@ export function computeAll(d) {
     leads_pct: pct(qualidade.L.zero, qualidade.L.n), leads_abertos_pct: pct(qualidade.L.zero_uso, qualidade.L.n_uso), leads_n: LD.length, leads_abertos_n: qualidade.L.n_uso,
     qualidade
   };
+  // DHS final = 80% × (média das dimensões − penalidade) + 20% × média dos % de registros 100% saudáveis
+  dhs.forEach(d => {
+    const u = d.escopo === 'uso';
+    const sr = ['E', 'C', 'L'].map(t => { const q = qualidade[t]; const n = u ? q.n_uso : q.n, z = u ? q.zero_uso : q.zero; return n ? 100 * z / n : null; }).filter(v => v != null);
+    d.nota_dimensoes = d.final;
+    d.saude_registros = sr.length ? sr.reduce((a, v) => a + v, 0) / sr.length : 0;
+    d.final = 0.8 * d.nota_dimensoes + 0.2 * d.saude_registros;
+    d.status = statusDe(d.final);
+  });
   // ---------- origens ofensoras (empresas e contatos) ----------
   const origemNome = { CRM_UI: 'UI de CRM', IMPORT: 'Importação', INTEGRATION: 'Integração', FORM: 'Formulários', CRM_SETTING: 'Configuração do CRM', EXTENSION: 'Extensão', EMAIL_INTEGRATION: 'Integração de e-mail', BCC_TO_CRM: 'BCC para o CRM', INTERNAL_PROCESSING: 'Processamento interno', AUTOMATION_PLATFORM: 'Automação da plataforma', API: 'API', MOBILE_IOS: 'App iOS', MOBILE_ANDROID: 'App Android', '(vazio)': 'Sem origem' };
   const errDim = { acuracia: (x) => x.f.acu, consistencia: (x) => !!x.f.con, completude: (x) => x.f.com, unicidade: (x, t) => (t === 'E' ? x.f.dup : x.f.dup_li), integridade: (x, t) => (t === 'E' ? x.f.sem_contato : x.f.sem_empresa) };
@@ -441,5 +459,5 @@ export function computeAll(d) {
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
   const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
-  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, metodologia: 'DHS 2.0 · nota por registro · pesos 25/20/20/20/15 · penalidade cumulativa abaixo de 80' }, lists, tabelas: TAB };
+  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, metodologia: 'DHS 2.0 · 80% dimensões (penalidade abaixo de 80) + 20% registros saudáveis · objetos 40/40/20 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
 }
