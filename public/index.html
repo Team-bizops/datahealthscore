@@ -195,11 +195,38 @@ body{margin:0;background:#f6f8fc}
 .dhs .lista .search{font:inherit;font-size:.8rem;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);min-width:180px}
 .dhs [data-dash-source-state=empty]{color:transparent}
 
+
+/* Guia visual Rank: tema escuro/preto fixo */
+html:root .dhs.dhs.dhs{
+  --navy:#000; --navy-line:rgba(255,255,255,.08);
+  --bg:#0a0a0b; --card:#17171a; --border:#2a2a31;
+  --text:#f4f4f6; --text-muted:#a6a6b0; --text-soft:#76767f;
+  --accent:#5b62ff; --accent-soft:#1d1f4d;
+  --mint:#2dd4ac; --mint-soft:#0d2e27; --mint-ink:#2dd4ac;
+  --warn:#f5b93e; --warn-soft:#33270d; --warn-ink:#f5b93e;
+  --danger:#f36565; --danger-soft:#341414; --danger-ink:#f36565;
+  --slate:#8b8b96; --slate-soft:#202026;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 30px -16px rgba(0,0,0,.7);
+}
+html, body{background:#0a0a0b}
+.dhs .topbar{background:#000;border-bottom:1px solid #1f1f24}
+.dhs .brand-row{display:flex;align-items:center;gap:16px;margin-right:auto}
+.dhs .brand-row .sep{width:1px;height:44px;background:#2a2a31}
+.dhs .brand strong{font-size:1.35rem}
+.dhs .brand .kick{font-size:.72rem;font-weight:800;letter-spacing:.08em;color:#a6a6b0;text-transform:uppercase}
+.dhs .pill{background:#17171a;border:1px solid #2a2a31;border-radius:10px}
+.dhs #btn-run{background:#5b62ff;color:#fff;border-radius:8px;padding:6px 14px;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+.dhs .explica{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:18px 0 6px}
+.dhs .explica .ex{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.dhs .explica .ex h4{font-size:.86rem;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dhs .explica .ex p{font-size:.82rem;color:var(--text-muted)}
+.dhs .explica .formula{grid-column:1/-1;background:var(--accent-soft);border-color:#33358a;color:#c9cbff;font-size:.88rem}
+.dhs .explica .formula b{color:#fff}
 </style>
 </head><body>
 <div class="dhs">
   <div class="topbar"><div class="wrap topbar-in">
-    <div class="brand"><strong>Data Health Score <span style="font-size:.7rem;background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;vertical-align:middle">DHS 2.0</span></strong><span>BizOps · direto do HubSpot</span></div>
+    <div class="brand-row"><svg width="40" height="36" viewBox="0 0 40 36" aria-label="Rank" role="img"><path fill="#fff" d="M0 0h40v8H23.5L40 26.5 34.3 32.2 14 11.9V36H6V8H0z"/></svg><span class="sep"></span><div class="brand"><strong>Data Health Score <span style="font-size:.7rem;background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;vertical-align:middle">DHS 2.0</span></strong><span class="kick">BizOps · Rank</span><span>Saúde da base de Empresas, Contatos e Leads do HubSpot</span></div></div>
     <span class="pill">Atualizado: <b id="atualizado">—</b></span>
     <span class="pill" id="statuspill">—</span>
     <span class="pill"><button id="btn-run" type="button">Atualizar agora</button></span>
@@ -208,6 +235,13 @@ body{margin:0;background:#f6f8fc}
   <div class="wrap">
     <div id="aviso"></div>
     <p class="lead" id="takeaway">—</p>
+    <div class="explica">
+      <div class="ex formula"><b>Como o DHS é calculado:</b> DHS = <b>80%</b> × (média ponderada das 5 dimensões − penalidade) + <b>20%</b> × média dos registros 100% saudáveis (Empresas, Contatos e Leads). Passe o mouse no <b>i</b> de cada bloco para o detalhe.</div>
+      <div class="ex"><h4>1. Dimensões <span class="info-ic" tabindex="0" data-info="ex_dim">i</span></h4><p>Cada dimensão é a % de registros sem nenhum erro naquele tipo de problema. Pesos: Acurácia 25%, Consistência 20%, Completude 20%, Duplicidade 20%, Integridade 15%.</p></div>
+      <div class="ex"><h4>2. Penalidade <span class="info-ic" tabindex="0" data-info="ex_pen">i</span></h4><p>Toda dimensão abaixo de 80 desconta de novo o seu déficit: peso × (80 − nota). Várias dimensões fracas somam penalidade.</p></div>
+      <div class="ex"><h4>3. Saúde dos registros <span class="info-ic" tabindex="0" data-info="ex_saude">i</span></h4><p>Os cards por objeto mostram quantos registros não têm nenhum problema em nenhuma dimensão. A média dos três entra com 20% no DHS.</p></div>
+      <div class="ex"><h4>4. Mapa de campos <span class="info-ic" tabindex="0" data-info="ex_mapa">i</span></h4><p>Diagnóstico de preenchimento por campo e onde o dado está. Não entra direto na nota: os campos obrigatórios já contam na Completude.</p></div>
+    </div>
 
     <div class="two-col" style="margin-top:20px">
       <div class="card" style="margin:0">
@@ -218,8 +252,9 @@ body{margin:0;background:#f6f8fc}
             <div><span class="kpi-label">Score</span><span class="v" data-k="dhs.total.final">—</span>
               <div class="tags" style="justify-content:center"><span class="tag">Em uso <span data-k="dhs.uso.final">—</span></span></div></div>
             <div><span class="kpi-label">Status</span><span class="badge" id="st-total">—</span>
-              <div class="kpi-sub">Média antes da penalidade: <span data-k="dhs.total.media">—</span></div>
-              <div class="kpi-sub">Penalidade: −<span data-k="dhs.total.impacto_penalidade">—</span> pts · abaixo de 80: <span data-k="dhs.total.pior_dimensao">—</span></div></div>
+              <div class="kpi-sub">Média das dimensões: <span data-k="dhs.total.media">—</span></div>
+              <div class="kpi-sub">Penalidade: −<span data-k="dhs.total.impacto_penalidade">—</span> pts · abaixo de 80: <span data-k="dhs.total.pior_dimensao">—</span></div>
+              <div class="kpi-sub">Dimensões (80%): <span data-k="dhs.total.nota_dimensoes">—</span> · Registros saudáveis (20%): <span data-k="dhs.total.saude_registros">—</span></div></div>
           </div>
         </div>
       </div>
@@ -291,8 +326,8 @@ body{margin:0;background:#f6f8fc}
         <ol>
           <li><b>Escopo:</b> Empresas, Contatos e Leads (pipelines SDRs e Executivos), exceto registros internos da RankMyApp. Objetos personalizados, contratos e processos comerciais ficam no HubScore e nas monitorias operacionais. A tag roxa repete o cálculo só para os registros em uso.</li>
           <li><b>Em uso:</b> empresa com negócio, cliente ou lead aberto; contato com negócio, associado a lead ou que já foi MQL; lead aberto.</li>
-          <li><b>Nota da dimensão (DHS 2.0):</b> % de registros sem nenhum erro nas regras oficiais da dimensão (cada registro conta uma vez; cada regra só avalia os registros elegíveis). Os objetos são combinados pelo nº de regras de cada um, com teto de 70%. A conformidade média dos IDPs aparece só como informação.</li>
-          <li><b>DHS:</b> média ponderada (Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%) menos a penalidade cumulativa: cada dimensão abaixo de 80 desconta peso × (80 − nota). Base inteira e registros em uso são calculados separadamente. Completude avalia só campos do registro; associações contam só na Integridade. Nova baseline em 02/11/2026.</li>
+          <li><b>Nota da dimensão (DHS 2.0):</b> % de registros sem nenhum erro nas regras oficiais da dimensão (cada registro conta uma vez; cada regra só avalia os registros elegíveis). Objetos: Empresas 40% · Contatos 40% · Leads 20% em Consistência, Completude e Integridade; pelo nº de regras (teto de 70%) em Acurácia e Duplicidade.</li>
+          <li><b>DHS:</b> 80% × (média ponderada das dimensões − penalidade) + 20% × média dos % de registros 100% saudáveis. Pesos: Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%. Penalidade: cada dimensão abaixo de 80 desconta peso × (80 − nota). Base inteira e registros em uso são calculados separadamente. Nova baseline em 03/11/2026.</li>
           <li><b>Faixas:</b> até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.</li>
           <li><b>Fora da nota:</b> regras em Monitoramento e Pendente e as linhas de Detalhe. Higiene, pipeline, contratos e dono do registro não fazem parte do score.</li>
         </ol>
@@ -302,11 +337,15 @@ body{margin:0;background:#f6f8fc}
 </div>
 <script>
 window.DHS_INFO = {
+  ex_dim: {t:'Dimensões', p:[['Nota','% de registros sem erro nas regras oficiais da dimensão. Cada registro conta uma vez, mesmo com vários erros; cada regra só avalia os registros elegíveis.'],['Objetos','Consistência, Completude e Integridade: Empresas 40% · Contatos 40% · Leads 20%. Acurácia e Duplicidade: pelo nº de regras de cada objeto, com teto de 70% (Empresas 70% · Contatos 30%).'],['Pesos','Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%.']]},
+  ex_pen: {t:'Penalidade', p:[['Regra','Cada dimensão abaixo de 80 desconta peso × (80 − nota) da média das dimensões.'],['Exemplo','Completude 68 com peso 20%: desconta 0,20 × 12 = 2,4 pontos, além dos pontos que já tirou na média.'],['Por quê','Evita que dimensões fortes escondam dimensões fracas.']]},
+  ex_saude: {t:'Saúde dos registros', p:[['O que é','% de empresas, contatos e leads sem nenhum problema em nenhuma dimensão (cards do topo).'],['No DHS','A média simples dos três percentuais entra com 20% da nota final.'],['Diferença das dimensões','A dimensão olha um tipo de problema por vez; aqui o registro precisa passar em tudo.']]},
+  ex_mapa: {t:'Mapa de campos', p:[['O que é','Para cada informação: quanto está preenchido na propriedade oficial, quanto está só em outra propriedade (dá para copiar) e quanto está vazio em tudo (precisa enriquecer).'],['Na nota','É diagnóstico. Os campos obrigatórios já são cobrados na Completude, as associações na Integridade.']]},
   qualidade: {t:'Qualidade dos registros por objeto', p:[['O que é','Para cada empresa, contato e lead, quantas regras da nota ele descumpre: nenhuma, uma, ou duas ou mais.'],['Diferente da nota','A nota da dimensão olha um tipo de problema por vez. Aqui o registro só aparece como "sem problemas" se passar em todas as regras de todas as dimensões.']]},
   sau_empresas: {t:'Empresas 100% saudáveis', p:[['O que é','% de empresas que não falham em nenhuma regra da nota: acurácia, campos, duplicidade e contato associado.'],['Tag roxa','O mesmo cálculo só para as empresas em uso (negócio, cliente ou lead aberto).']]},
   sau_contatos: {t:'Contatos 100% saudáveis', p:[['O que é','% de contatos que não falham em nenhuma regra da nota: acurácia, consistência, campos, LinkedIn duplicado e empresa associada.'],['Tag roxa','O mesmo cálculo só para os contatos em uso (negócio, lead ou já foi MQL).']]},
   sau_leads: {t:'Leads 100% saudáveis', p:[['O que é','% de leads dos pipelines SDRs e Executivos sem erro: contato e empresa associados, origem preenchida, dados iguais aos do contato e sem lead aberto duplicado.'],['Tag','O mesmo cálculo só para os leads abertos.']]},
-  gauge: {t:'Data Health Score 2.0', p:[['Nota da dimensão','% de registros sem nenhum erro nas regras da dimensão, por objeto, combinando os objetos pelo nº de regras (teto de 70%).'],['DHS','Média ponderada: Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%.'],['Penalidade','Cada dimensão abaixo de 80 desconta de novo o seu déficit: peso × (80 − nota). Várias dimensões fracas somam penalidade.'],['Baseline','Metodologia nova a partir de 02/11/2026.']]},
+  gauge: {t:'Data Health Score 2.0', p:[['Fórmula','DHS = 80% × (média ponderada das dimensões − penalidade) + 20% × média dos % de registros 100% saudáveis.'],['Dimensões','Acurácia 25% · Consistência 20% · Completude 20% · Duplicidade 20% · Integridade 15%.'],['Penalidade','Cada dimensão abaixo de 80 desconta peso × (80 − nota).'],['Faixas','Até 50 Crítico · até 70 Atenção · até 85 Bom · até 95 Saudável · acima Excelente.']]},
   radar: {t:'Score por dimensão', p:[['Como ler','Cada eixo é a nota de uma dimensão de 0 a 100. A área preenchida é a base inteira; a linha tracejada roxa são os registros em uso.']]},
   impacto: {t:'Peso e impacto', p:[['Peso','Quanto a dimensão vale no DHS.'],['Impacto','Pontos que a dimensão tira do DHS: peso × (100 − nota). Mostra onde corrigir rende mais.']]},
   origens: {t:'Top 3 origens ofensoras', p:[['O que é','As 3 origens de criação do registro (Record source do HubSpot) que concentram mais erros de empresas e contatos em cada dimensão, na base inteira.']]},
@@ -315,10 +354,10 @@ window.DHS_INFO = {
   uso: {t:'Registros em uso', p:[['Empresa em uso','Tem negócio, é cliente ou tem lead aberto.'],['Contato em uso','Tem negócio, está associado a um lead ou já foi MQL.'],['Para que serve','A nota é da base inteira. A tag roxa mostra quanto do problema está nos registros que o time usa hoje.']]},
   registros: {t:'Avaliados, corretos e com erro', p:[['Avaliados','Registros em que a regra se aplica. Ex.: porte × funcionários só avalia empresas com os dois campos preenchidos.'],['Corretos','Avaliados que passam na regra.'],['Com erro','Avaliados que falham na regra.'],['Status','Oficial entra na nota. Em validação entra na nota, mas a regra ainda será conferida com amostra. Detalhe, Monitoramento e Pendente ficam fora da nota.'],['Lista','Clique na linha para ver os registros, abrir no HubSpot ou baixar o CSV.']]},
   acuracia: {t:'Acurácia · peso 25%', p:[['Pergunta','O valor preenchido está certo?'],['Regras','Empresa (5): porte × nº de funcionários, CNPJ, país × Breeze, domínio × site, segmento × indústria do Breeze. Contato (1): LinkedIn × Breeze.'],['Peso dos objetos','Empresas 70% (teto) · Contatos 30%.']]},
-  consistencia: {t:'Consistência entre objetos · peso 20%', p:[['Pergunta','A mesma informação bate entre Empresas, Contatos, Leads e Negócios?'],['Regras','Empresa (3): nome × contatos, empresa dos leads × contatos, lifecycle × contatos. Contato (2): e-mail × empresa, campo Empresa × empresa. Lead (4): telefone e empresa × contato; Operação e Intenção de compra × negócio (só leads agendados).'],['Peso dos objetos','Pelo nº de regras: Empresas 3, Contatos 2, Leads 4.']]},
-  completude: {t:'Completude · peso 20%', p:[['Pergunta','Os campos necessários estão preenchidos?'],['Regras','Empresa (7): nome, porte, segmento, país, abrangência, domínio e CNPJ (só Cliente). Contato (5): nome, e-mail, hierarquia do cargo, área do POC e LinkedIn. Lead (3): origem e, nos agendados, Operação e Intenção de compra.'],['Peso dos objetos','Pelo nº de campos: Empresas 7, Contatos 5, Leads 3.'],['Detalhe','As linhas com ↳ mostram cada campo vazio e não entram na nota.']]},
+  consistencia: {t:'Consistência entre objetos · peso 20%', p:[['Pergunta','A mesma informação bate entre Empresas, Contatos, Leads e Negócios?'],['Regras','Empresa (3): nome × contatos, empresa dos leads × contatos, lifecycle × contatos. Contato (2): e-mail × empresa, campo Empresa × empresa. Lead (4): telefone e empresa × contato; Operação e Intenção de compra × negócio (só leads agendados).'],['Peso dos objetos','Empresas 40% · Contatos 40% · Leads 20%.']]},
+  completude: {t:'Completude · peso 20%', p:[['Pergunta','Os campos necessários estão preenchidos?'],['Regras','Empresa (7): nome, porte, segmento, país, abrangência, domínio e CNPJ (só Cliente). Contato (5): nome, e-mail, hierarquia do cargo, área do POC e LinkedIn. Lead (3): origem e, nos agendados, Operação e Intenção de compra.'],['Peso dos objetos','Empresas 40% · Contatos 40% · Leads 20%.'],['Detalhe','As linhas com ↳ mostram cada campo vazio e não entram na nota.']]},
   unicidade: {t:'Duplicidade · peso 20%', p:[['Pergunta','Existe um registro por entidade?'],['Regras','Empresa (3): mesmo domínio, mesmo domínio raiz, mesmo nome. Contato (1): mesmo LinkedIn.'],['Nota','% de registros sem cópia; uma empresa duplicada conta uma vez na nota do objeto.'],['Peso dos objetos','Empresas 70% (teto) · Contatos 30%.']]},
-  integridade: {t:'Integridade · peso 15%', p:[['Pergunta','Os registros estão conectados?'],['Regras','Empresa (1): sem contato. Contato (1): sem empresa. Lead (2): sem contato, sem empresa. INT-05 (lead agendado sem negócio) é só monitoramento.'],['Peso dos objetos','Empresas 25% · Contatos 25% · Leads 50%.']]}
+  integridade: {t:'Integridade · peso 15%', p:[['Pergunta','Os registros estão conectados?'],['Regras','Empresa (1): sem contato. Contato (1): sem empresa. Lead (2): sem contato, sem empresa. INT-05 (lead agendado sem negócio) é só monitoramento.'],['Peso dos objetos','Empresas 40% · Contatos 40% · Leads 20%.']]}
 };
 window.DHS_DIMS = [
   {id:'acuracia', nome:'Acurácia', peso:0.25, pergunta:'O valor preenchido está certo?',
@@ -407,7 +446,7 @@ window.DHS_DIMS = [
   // ---------- preenchimento ----------
   const val = (k) => {
     const [src, a, b] = k.split('.');
-    if (src === 'dhs') { const r = DATA.dhs.find(x => x.escopo === a); return r ? (['final', 'media', 'pior', 'impacto_penalidade'].includes(b) ? nf1(r[b]) : r[b]) : '—'; }
+    if (src === 'dhs') { const r = DATA.dhs.find(x => x.escopo === a); return r ? (['final', 'media', 'pior', 'impacto_penalidade', 'nota_dimensoes', 'saude_registros'].includes(b) ? nf1(r[b]) : r[b]) : '—'; }
     if (src === 'sau') { const v = DATA.saudaveis[a]; return a.endsWith('_n') ? nint(v) : pct(v); }
     if (src === 'dim') { const r = DATA.dimensoes.find(x => x.dimensao === a); return r ? nf1(r[b]) : '—'; }
     return '—';

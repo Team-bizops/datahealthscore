@@ -10,7 +10,13 @@
   .dhs .mlink:disabled{color:var(--text-soft);text-decoration:none;cursor:default}
   .dhs .mgrp td{background:var(--slate-soft);font-weight:800;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted)}
   .dhs .mleg{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--text-muted);margin:4px 0 12px}
-  .dhs .mleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}`;
+  .dhs .mleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  #mapa .tw{overflow-x:visible}
+  #mapa table.dtable{table-layout:fixed;width:100%;min-width:0;font-size:.8rem}
+  #mapa table.dtable th, #mapa table.dtable td{white-space:normal;word-break:break-word;padding:7px 6px}
+  #mapa table.dtable th:nth-child(1){width:19%} #mapa table.dtable th:nth-child(2){width:16%} #mapa table.dtable th:nth-child(3){width:15%}
+  #mapa table.dtable th:nth-child(4){width:14%} #mapa table.dtable th:nth-child(5),#mapa table.dtable th:nth-child(6),#mapa table.dtable th:nth-child(7){width:12%}
+  #mapa .mbar{min-width:0}`;
   document.head.appendChild(css);
   const C_OK = 'var(--mint)', C_ALT = 'var(--warn)', C_VZ = 'var(--danger)';
 
