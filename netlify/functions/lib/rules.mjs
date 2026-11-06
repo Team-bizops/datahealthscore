@@ -71,7 +71,9 @@ const IND_SEG = (() => {
   put('LEGAL_SERVICES LAW_PRACTICE OUTSOURCING_OFFSHORING FACILITIES_SERVICES CONSUMER_SERVICES BUSINESS_SUPPLIES_AND_EQUIPMENT SECURITY_AND_INVESTIGATIONS TRANSLATION_AND_LOCALIZATION DESIGN GRAPHIC_DESIGN ENVIRONMENTAL_SERVICES IMPORT_AND_EXPORT', ['prestacao de servicos', 'servicos de rh e consultoria', 'marketing']);
   return m;
 })();
-const INTENCAO_OPERACAO = { mi: 'rankmyapp', ri: 'rankmyapp', rmapp: 'rankmyapp', rankmyapp: 'rankmyapp', rmads: 'rankmyads', rankmyads: 'rankmyads' };
+// Intenção de compra (valor interno) → Operação esperada no negócio (valor interno): 'RMApp - …' (MI, RI, DataRank…) e 'MI + DataRank' = RankMyApp; 'RMAds' = MP (RankMyAds).
+// Valores sem correspondência definida (RankMyGeo, DI, MP + DataRank) não são avaliados.
+const intencaoParaOperacao = (k) => (k === 'rmads' ? 'mp' : (k.startsWith('rmapp') || k === 'midatarank') ? 'rankmyapp' : null);
 const bate = (oficial, esperado) => sem(oficial).startsWith(esperado) || sem(oficial).includes(esperado);
 
 export function computeAll(d) {
@@ -219,7 +221,7 @@ export function computeAll(d) {
     const opDn = opD.map(v => v.replace(/[^a-z0-9]/g, ''));
     f.op_base = f.na_etapa && !!opL && opD.length > 0; f.op_div = f.op_base && !opD.includes(opL);
     // Intenção de compra do lead × Operação do negócio (MI, RI e RMApp = RankMyApp; RMAds = RankMyAds)
-    const intEsperada = INTENCAO_OPERACAO[inL.replace(/[^a-z0-9]/g, '')];
+    const intEsperada = intencaoParaOperacao(inL.replace(/[^a-z0-9]/g, ''));
     f.int_base = f.na_etapa && !!intEsperada && opDn.length > 0; f.int_div = f.int_base && !opDn.includes(intEsperada);
     f.agend_sem_neg = f.eleg && !f.tem_negocio;
     f.con_base = f.tel_base || f.emp_base || f.op_base || f.int_base;
@@ -302,7 +304,7 @@ export function computeAll(d) {
   add('CON-06', 'consistencia', 'Empresa dos leads diferente da empresa dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.lead_base, x => x.f.lead_err), 'A empresa está associada a pelo menos um lead cujo contato não está associado a ela.', listE(x => x.f.lead_base, x => x.f.lead_err));
   add('CON-07', 'consistencia', 'Lifecycle da empresa diferente do dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.life_base, x => x.f.life_err), 'Lifecycle da empresa diferente do lifecycle mais avançado entre os seus contatos.', listE(x => x.f.life_base, x => x.f.life_err));
   add('CON-08', 'consistencia', 'Operação do lead diferente da do negócio', 'Lead', 'Oficial', scL(x => x.f.op_base, x => x.f.op_div), 'Leads na etapa Reunião Agendada (SDRs) ou Agendado (Executivos), com negócio associado e Operação preenchida nos dois: Operação do lead × Operação do negócio.', listL(x => x.f.op_base, x => x.f.op_div));
-  add('CON-09', 'consistencia', 'Intenção de compra do lead diferente da Operação do negócio', 'Lead', 'Oficial', scL(x => x.f.int_base, x => x.f.int_div), 'Leads na etapa Reunião Agendada/Agendado com negócio: Intenção de compra do lead × Operação do negócio (MI, RI e RMApp = RankMyApp; RMAds = RankMyAds).', listL(x => x.f.int_base, x => x.f.int_div));
+  add('CON-09', 'consistencia', 'Intenção de compra do lead diferente da Operação do negócio', 'Lead', 'Oficial', scL(x => x.f.int_base, x => x.f.int_div), 'Leads na etapa Reunião Agendada/Agendado com negócio: Intenção de compra do lead × Operação do negócio (RMApp – MI, RI, DataRank e demais RMApp = RankMyApp; RMAds = RankMyAds). RankMyGeo, DI e MP + DataRank ainda não são avaliados.', listL(x => x.f.int_base, x => x.f.int_div));
   // Completude
   add('COM-01', 'completude', 'Empresa com algum campo vazio', 'Empresa', 'Oficial', sc(E, all, x => x.f.com), 'Conta como erro se faltar: nome, porte, segmento, país, abrangência, domínio ou CNPJ (este só para empresas Cliente).', listE(all, x => x.f.com));
   for (const [id, k, t, base] of [['COM-01.1', 'sem_nome', 'Sem nome da empresa'], ['COM-01.2', 'sem_porte', 'Sem porte'], ['COM-01.3', 'sem_segmento', 'Sem segmento'], ['COM-01.4', 'sem_pais', 'Sem país'], ['COM-01.5', 'sem_abrang', 'Sem abrangência'], ['COM-01.6', 'sem_dominio', 'Sem domínio'], ['COM-01.7', 'sem_cnpj_cli', 'Cliente sem CNPJ']])
