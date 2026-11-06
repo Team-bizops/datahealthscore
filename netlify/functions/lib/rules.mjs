@@ -186,7 +186,10 @@ export function computeAll(d) {
     const row = { record_id: c.id, nome: g(c, 'contacts', 'nome') || '', sobrenome: g(c, 'contacts', 'sobrenome') || '', email, email_tipo: f.email_tipo, empresa: g(c, 'contacts', 'empresa') || '',
       grupo_duplicidade: f.dup_li ? `linkedin.com/in/${slug}` : (f.dup_nome ? k : ''), cargo: cargo || '', hs_seniority: g(c, 'contacts', 'seniority') || '', area_poc: area || '', hs_role: g(c, 'contacts', 'role') || '',
       linkedin: li || '', hs_linkedin_url: liAlt || '', origem: g(c, 'contacts', 'origem') || '(vazio)', em_uso: uso ? 'sim' : 'não', link_hubspot: link('0-1', c.id) };
-    return { id: c.id, uso, origem: row.origem, f, row, grupos: { li: slug || '', li_n: slug ? dupLi.get(slug) : 0, nome: k || '', nome_n: k ? dupNome.get(k) : 0 } };
+    const emp0 = empIds.length ? comp.get(empIds[0]) : null;
+    const grupo_emp = emp0 ? `${g(emp0, 'companies', 'nome') || 'Empresa'} (ID ${emp0.id})` : '(sem empresa)';
+    row.empresa_associada = grupo_emp;
+    return { id: c.id, uso, origem: row.origem, f, row, grupo_emp, grupos: { li: slug || '', li_n: slug ? dupLi.get(slug) : 0, nome: k || '', nome_n: k ? dupNome.get(k) : 0 } };
   });
 
   // ---------- leads ----------
@@ -224,8 +227,8 @@ export function computeAll(d) {
     const intEsperada = intencaoParaOperacao(inL.replace(/[^a-z0-9]/g, ''));
     f.int_base = f.na_etapa && !!intEsperada && opDn.length > 0; f.int_div = f.int_base && !opDn.includes(intEsperada);
     f.agend_sem_neg = f.eleg && !f.tem_negocio;
-    f.con_base = f.tel_base || f.emp_base || f.op_base || f.int_base;
-    f.con = f.tel_div || f.emp_div || f.op_div || f.int_div;
+    f.con_base = f.tel_base || f.op_base || f.int_base;
+    f.con = f.tel_div || f.op_div || f.int_div;
     f.com = f.sem_origem || f.sem_operacao || f.sem_intencao;
     f.saudavel = !(f.con || f.com || f.sem_contato || f.sem_empresa);
     return { id: l.id, f, nome: g(l, 'leads', 'nome') || '', pipeline: sdr ? 'SDRs' : 'Executivos', etapa: g(l, 'leads', 'etapa') || '', operacao_lead: g(l, 'leads', 'operacao') || '', operacao_negocio: opD.join(' / '), intencao_lead: g(l, 'leads', 'intencao') || '', intencao_negocio: opD.join(' / '),
@@ -233,15 +236,18 @@ export function computeAll(d) {
       tel_lead: g(l, 'leads', 'telefone') || '', tel_contato: ct ? (g(ct, 'contacts', 'telefone') || g(ct, 'contacts', 'celular') || '') : '' };
   });
 
+  // contatos com campo Empresa divergente, contados por empresa associada (para agrupar a lista do CON-02)
+  const ctDivPorEmpresa = new Map();
+  for (const x of C) if (x.f.empresa_div) ctDivPorEmpresa.set(x.grupo_emp, (ctDivPorEmpresa.get(x.grupo_emp) || 0) + 1);
   // ---------- consistência do lado da empresa (CON-08, CON-10, CON-11) ----------
   const RANK = { subscriber: 1, lead: 2, marketingqualifiedlead: 3, salesqualifiedlead: 4, opportunity: 5, customer: 6, evangelist: 7 };
   const ctsDaEmpresa = new Map();
   for (const x of C) for (const e of (contactCompanies.get(x.id) || [])) { if (!ctsDaEmpresa.has(e)) ctsDaEmpresa.set(e, []); ctsDaEmpresa.get(e).push(x.id); }
-  const leadBase = new Set(), leadErr = new Set();
+  const leadBase = new Set(), leadErr = new Set(), leadDet = new Map();
   for (const l of leadsF) {
     const ct = assoc(l, 'contact').map(i => ctById.get(i)).find(Boolean); if (!ct) continue;
     const ctEmps = contactCompanies.get(ct.id) || [];
-    for (const e of assoc(l, 'compan')) { if (!comp.has(e)) continue; leadBase.add(e); if (!ctEmps.includes(e)) leadErr.add(e); }
+    for (const e of assoc(l, 'compan')) { if (!comp.has(e)) continue; leadBase.add(e); if (!ctEmps.includes(e)) { leadErr.add(e); if (!leadDet.has(e)) leadDet.set(e, []); leadDet.get(e).push(`${g(l, 'leads', 'nome') || 'Lead ' + l.id} (lead ${l.id}) · contato ${g(ct, 'contacts', 'email') || ct.id}`); } }
   }
   for (const x of E) {
     const c = comp.get(x.id), nm = normName(g(c, 'companies', 'nome')), lifeE = RANK[(g(c, 'companies', 'lifecycle') || '').toLowerCase()];
@@ -253,8 +259,9 @@ export function computeAll(d) {
     x.f.lead_base = leadBase.has(x.id); x.f.lead_err = leadErr.has(x.id);
     x.f.life_base = !!lifeE && ranks.length > 0;
     x.f.life_err = x.f.life_base && lifeE !== Math.max(...ranks);
-    x.f.con_base = x.f.nome_base || x.f.lead_base || x.f.life_base;
-    x.f.con = x.f.nome_err || x.f.lead_err || x.f.life_err;
+    x.f.con_base = x.f.lead_base || x.f.life_base;
+    x.f.con = x.f.lead_err || x.f.life_err;
+    x.row.leads_divergentes = (leadDet.get(x.id) || []).join(' | ');
     x.f.saudavel = x.f.saudavel && !x.f.con;
     x.row.lifecycle_contatos = ranks.length ? Object.keys(RANK).find(k => RANK[k] === Math.max(...ranks)) : '';
   }
@@ -297,14 +304,12 @@ export function computeAll(d) {
   add('ACU-06', 'acuracia', 'Segmento diferente da indústria (Breeze)', 'Empresa', 'Oficial', sc(E, ...pE('seg')), 'segmento × industry do Breeze por de-para. Não avalia segmento "Outros" nem indústrias sem correspondência.', listE(...pE('seg')));
   // Consistência entre objetos
   add('CON-01', 'consistencia', 'E-mail corporativo de domínio diferente da empresa', 'Contato', 'Oficial', sc(C, x => x.f.dominio_base, x => x.f.dominio_div), 'Domínio do e-mail do contato × domínio das empresas associadas.', listC(x => x.f.dominio_base, x => x.f.dominio_div));
-  add('CON-02', 'consistencia', 'Campo "Empresa" diferente da empresa associada', 'Contato', 'Oficial', sc(C, x => x.f.empresa_base, x => x.f.empresa_div), 'Texto de company × nome das empresas associadas (sem acento, espaço e pontuação; um contido no outro passa).', listC(x => x.f.empresa_base, x => x.f.empresa_div));
+  add('CON-02', 'consistencia', 'Campo "Empresa" diferente da empresa associada', 'Contato', 'Oficial', sc(C, x => x.f.empresa_base, x => x.f.empresa_div), 'Texto de company × nome das empresas associadas (sem acento, espaço e pontuação; um contido no outro passa). A lista agrupa os contatos por empresa associada, da que tem mais casos para a que tem menos.', idxG('C', C, x => x.f.empresa_div, x => x.grupo_emp, x => ctDivPorEmpresa.get(x.grupo_emp) || 0));
   add('CON-03', 'consistencia', 'Telefone do lead diferente do contato', 'Lead', 'Oficial', scL(x => x.f.tel_base, x => x.f.tel_div), 'Últimos 8 dígitos do telefone do lead × telefone ou celular do contato.', listL(x => x.f.tel_base, x => x.f.tel_div));
-  add('CON-04', 'consistencia', 'Empresa do lead diferente da empresa do contato', 'Lead', 'Oficial', scL(x => x.f.emp_base, x => x.f.emp_div), 'Empresa associada ao lead × empresas associadas ao contato do lead.', listL(x => x.f.emp_base, x => x.f.emp_div));
-  add('CON-05', 'consistencia', 'Nome da empresa diferente do campo "Empresa" dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.nome_base, x => x.f.nome_err), 'Nenhum contato associado tem no campo company (texto) um nome compatível com o da empresa.', listE(x => x.f.nome_base, x => x.f.nome_err));
-  add('CON-06', 'consistencia', 'Empresa dos leads diferente da empresa dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.lead_base, x => x.f.lead_err), 'A empresa está associada a pelo menos um lead cujo contato não está associado a ela.', listE(x => x.f.lead_base, x => x.f.lead_err));
-  add('CON-07', 'consistencia', 'Lifecycle da empresa diferente do dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.life_base, x => x.f.life_err), 'Lifecycle da empresa diferente do lifecycle mais avançado entre os seus contatos.', listE(x => x.f.life_base, x => x.f.life_err));
-  add('CON-08', 'consistencia', 'Operação do lead diferente da do negócio', 'Lead', 'Oficial', scL(x => x.f.op_base, x => x.f.op_div), 'Leads na etapa Reunião Agendada (SDRs) ou Agendado (Executivos), com negócio associado e Operação preenchida nos dois: Operação do lead × Operação do negócio.', listL(x => x.f.op_base, x => x.f.op_div));
-  add('CON-09', 'consistencia', 'Intenção de compra do lead diferente da Operação do negócio', 'Lead', 'Oficial', scL(x => x.f.int_base, x => x.f.int_div), 'Leads na etapa Reunião Agendada/Agendado com negócio: Intenção de compra do lead × Operação do negócio (RMApp – MI, RI, DataRank e demais RMApp = RankMyApp; RMAds = RankMyAds). RankMyGeo, DI e MP + DataRank ainda não são avaliados.', listL(x => x.f.int_base, x => x.f.int_div));
+  add('CON-04', 'consistencia', 'Empresa dos leads diferente da empresa dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.lead_base, x => x.f.lead_err), 'A empresa está associada a pelo menos um lead cujo contato não está associado a ela. A lista mostra, em cada empresa, os leads e contatos envolvidos.', listE(x => x.f.lead_base, x => x.f.lead_err));
+  add('CON-05', 'consistencia', 'Lifecycle da empresa diferente do dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.life_base, x => x.f.life_err), 'Lifecycle da empresa diferente do lifecycle mais avançado entre os seus contatos.', listE(x => x.f.life_base, x => x.f.life_err));
+  add('CON-06', 'consistencia', 'Operação do lead diferente da do negócio', 'Lead', 'Oficial', scL(x => x.f.op_base, x => x.f.op_div), 'Leads na etapa Reunião Agendada (SDRs) ou Agendado (Executivos), com negócio associado e Operação preenchida nos dois: Operação do lead × Operação do negócio.', listL(x => x.f.op_base, x => x.f.op_div));
+  add('CON-07', 'consistencia', 'Intenção de compra do lead diferente da Operação do negócio', 'Lead', 'Oficial', scL(x => x.f.int_base, x => x.f.int_div), 'Leads na etapa Reunião Agendada/Agendado com negócio: Intenção de compra do lead × Operação do negócio (RMApp – MI, RI, DataRank e demais RMApp = RankMyApp; RMAds = RankMyAds). RankMyGeo, DI e MP + DataRank ainda não são avaliados.', listL(x => x.f.int_base, x => x.f.int_div));
   // Completude
   add('COM-01', 'completude', 'Empresa com algum campo vazio', 'Empresa', 'Oficial', sc(E, all, x => x.f.com), 'Conta como erro se faltar: nome, porte, segmento, país, abrangência, domínio ou CNPJ (este só para empresas Cliente).', listE(all, x => x.f.com));
   for (const [id, k, t, base] of [['COM-01.1', 'sem_nome', 'Sem nome da empresa'], ['COM-01.2', 'sem_porte', 'Sem porte'], ['COM-01.3', 'sem_segmento', 'Sem segmento'], ['COM-01.4', 'sem_pais', 'Sem país'], ['COM-01.5', 'sem_abrang', 'Sem abrangência'], ['COM-01.6', 'sem_dominio', 'Sem domínio'], ['COM-01.7', 'sem_cnpj_cli', 'Cliente sem CNPJ']])
