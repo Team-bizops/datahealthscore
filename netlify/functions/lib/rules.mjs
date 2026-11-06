@@ -464,6 +464,22 @@ export function computeAll(d) {
     d.final = d.nota_dimensoes; // 100% dimensões; saúde dos registros fica só como diagnóstico
     d.status = statusDe(d.final);
   });
+  // ---------- Monitoramento (fora da nota): empresas sem atividade há mais de 2 anos ----------
+  const LIMITE_ATIV = Date.now() - 730 * 24 * 3600 * 1000;
+  const dataDe = (v) => { if (vazio(v)) return null; const n = Number(v); const t = isNaN(n) ? Date.parse(v) : n; return isNaN(t) ? null : t; };
+  const combos = new Map(); const inativasIdx = [];
+  E.forEach((x, i) => {
+    const t = dataDe(g(comp.get(x.id), 'companies', 'ultima_atividade'));
+    const inativa = t == null || t < LIMITE_ATIV;
+    x.row.ultima_atividade = t == null ? 'nunca' : new Date(t).toISOString().slice(0, 10);
+    TAB.E[i].ultima_atividade = x.row.ultima_atividade;
+    if (inativa) inativasIdx.push(i);
+    const k = (x.row.porte || '(sem porte)') + '||' + (x.row.segmento || '(sem segmento)');
+    const o = combos.get(k) || { porte: x.row.porte || '(sem porte)', segmento: x.row.segmento || '(sem segmento)', total: 0, inativas: 0 };
+    o.total++; if (inativa) o.inativas++; combos.set(k, o);
+  });
+  lists['MON-01'] = { t: 'E', b: E.map((_, i) => i), e: inativasIdx };
+  const monitor = { inatividade: { regra: 'Sem atividade registrada (notes_last_updated) há mais de 24 meses ou nunca', total: E.length, inativas: inativasIdx.length, combos: [...combos.values()] } };
   // ---------- origens ofensoras (empresas e contatos) ----------
   const origemNome = { CRM_UI: 'UI de CRM', IMPORT: 'Importação', INTEGRATION: 'Integração', FORM: 'Formulários', CRM_SETTING: 'Configuração do CRM', EXTENSION: 'Extensão', EMAIL_INTEGRATION: 'Integração de e-mail', BCC_TO_CRM: 'BCC para o CRM', INTERNAL_PROCESSING: 'Processamento interno', AUTOMATION_PLATFORM: 'Automação da plataforma', API: 'API', MOBILE_IOS: 'App iOS', MOBILE_ANDROID: 'App Android', '(vazio)': 'Sem origem' };
   const errDim = { acuracia: (x) => x.f.acu, consistencia: (x) => !!x.f.con, completude: (x) => x.f.com, unicidade: (x, t) => (t === 'E' ? x.f.dup : x.f.dup_li), integridade: (x, t) => (t === 'E' ? x.f.sem_contato : x.f.sem_empresa) };
@@ -476,5 +492,5 @@ export function computeAll(d) {
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
   const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
-  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
+  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, monitor, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
 }
