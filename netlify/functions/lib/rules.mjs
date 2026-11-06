@@ -176,14 +176,18 @@ export function computeAll(d) {
     f.dominio_div = f.dominio_base && !doms.some(dm => dEmail === dm || dEmail.endsWith('.' + dm) || dm.endsWith('.' + dEmail) || rootKey(dEmail) === rootKey(dm));
     f.empresa_div = f.empresa_base && !nomesEmp.some(n => n.includes(empTxt) || empTxt.includes(n));
     f.li_err = f.li_base && liSlug(li, 'in') !== liSlug(liAlt, 'in');
-    f.acu = f.li_err;
+    // e-mail público e e-mail inválido (hard bounce)
+    f.pub_base = !!email; f.pub_err = f.pub_base && pub;
+    f.bounce_base = !!email; f.bounce_err = f.bounce_base && !vazio(g(c, 'contacts', 'bounce'));
+    f.acu_base = f.li_base || f.pub_base || f.bounce_base;
+    f.acu = f.li_err || f.pub_err || f.bounce_err;
     f.con = f.dominio_div || f.empresa_div;
     f.sem_nome = vazio(g(c, 'contacts', 'nome')); f.sem_email = !email;
     f.email_tipo = !email ? 'sem' : pub ? 'publico' : 'corporativo';
     f.com = f.sem_nome || f.sem_email || f.sem_cargo || f.sem_area || f.sem_linkedin;
     f.saudavel = !(f.acu || f.con || f.com || f.dup_li || f.sem_empresa);
     const uso = (num(g(c, 'contacts', 'n_negocios')) || 0) > 0 || ctLead.has(c.id) || !vazio(g(c, 'contacts', 'mql'));
-    const row = { record_id: c.id, nome: g(c, 'contacts', 'nome') || '', sobrenome: g(c, 'contacts', 'sobrenome') || '', email, email_tipo: f.email_tipo, empresa: g(c, 'contacts', 'empresa') || '',
+    const row = { record_id: c.id, nome: g(c, 'contacts', 'nome') || '', sobrenome: g(c, 'contacts', 'sobrenome') || '', email, email_tipo: f.email_tipo, hard_bounce: g(c, 'contacts', 'bounce') || '', empresa: g(c, 'contacts', 'empresa') || '',
       grupo_duplicidade: f.dup_li ? `linkedin.com/in/${slug}` : (f.dup_nome ? k : ''), cargo: cargo || '', hs_seniority: g(c, 'contacts', 'seniority') || '', area_poc: area || '', hs_role: g(c, 'contacts', 'role') || '',
       linkedin: li || '', hs_linkedin_url: liAlt || '', origem: g(c, 'contacts', 'origem') || '(vazio)', em_uso: uso ? 'sim' : 'não', link_hubspot: link('0-1', c.id) };
     const emp0 = empIds.length ? comp.get(empIds[0]) : null;
@@ -302,6 +306,8 @@ export function computeAll(d) {
   add('ACU-04', 'acuracia', 'Domínio diferente do site', 'Empresa', 'Oficial', sc(E, ...pE('site')), 'Domínio raiz de domain × domínio raiz de website. Avalia empresas com os dois campos.', listE(...pE('site')));
   add('ACU-05', 'acuracia', 'LinkedIn diferente do LinkedIn do Breeze', 'Contato', 'Oficial', sc(C, ...pC('li')), 'Perfil (linkedin.com/in/…) de linkedin × hs_linkedin_url. Avalia contatos com os dois campos.', listC(...pC('li')));
   add('ACU-06', 'acuracia', 'Segmento diferente da indústria (Breeze)', 'Empresa', 'Oficial', sc(E, ...pE('seg')), 'segmento × industry do Breeze por de-para. Não avalia segmento "Outros" nem indústrias sem correspondência.', listE(...pE('seg')));
+  add('ACU-07', 'acuracia', 'Contato com e-mail público em vez de corporativo', 'Contato', 'Oficial', sc(C, x => x.f.pub_base, x => x.f.pub_err), 'E-mail de provedor público (gmail, hotmail, outlook, yahoo, icloud, live, bol, uol, terra). Negócios são fechados com POCs de e-mail corporativo.', listC(x => x.f.pub_base, x => x.f.pub_err));
+  add('ACU-08', 'acuracia', 'E-mail do contato inválido (hard bounce)', 'Contato', 'Oficial', sc(C, x => x.f.bounce_base, x => x.f.bounce_err), 'O HubSpot tentou entregar e o e-mail voltou como inexistente ou inválido (hard bounce). Normalmente é um contato que saiu da empresa.', listC(x => x.f.bounce_base, x => x.f.bounce_err));
   // Consistência entre objetos
   add('CON-01', 'consistencia', 'E-mail corporativo de domínio diferente da empresa', 'Contato', 'Oficial', sc(C, x => x.f.dominio_base, x => x.f.dominio_div), 'Domínio do e-mail do contato × domínio das empresas associadas.', listC(x => x.f.dominio_base, x => x.f.dominio_div));
   add('CON-02', 'consistencia', 'Campo "Empresa" diferente da empresa associada', 'Contato', 'Oficial', sc(C, x => x.f.empresa_base, x => x.f.empresa_div), 'Texto de company × nome das empresas associadas (sem acento, espaço e pontuação; um contido no outro passa). A lista agrupa os contatos por empresa associada, da que tem mais casos para a que tem menos.', idxG('C', C, x => x.f.empresa_div, x => x.grupo_emp, x => ctDivPorEmpresa.get(x.grupo_emp) || 0));
@@ -339,7 +345,7 @@ export function computeAll(d) {
   // Nota por registro: em cada objeto, o registro conta uma vez e é erro se falhar em qualquer regra da dimensão
   // Nota por objeto = % de registros sem erro na dimensão. Peso do objeto = nº de regras dele na dimensão, com teto.
   const REG = {
-    acuracia: [['Empresas', E, x => x.f.acu_base, x => x.f.acu, 5], ['Contatos', C, x => x.f.li_base, x => x.f.acu, 1]],
+    acuracia: [['Empresas', E, x => x.f.acu_base, x => x.f.acu, 5], ['Contatos', C, x => x.f.acu_base, x => x.f.acu, 3]],
     consistencia: [['Empresas', E, x => x.f.con_base, x => x.f.con, 3], ['Contatos', C, x => x.f.dominio_base || x.f.empresa_base, x => x.f.con, 2], ['Leads', LD, x => x.f.con_base, x => x.f.con, 4]],
     completude: [['Empresas', E, all, x => x.f.com, 7], ['Contatos', C, all, x => x.f.com, 5], ['Leads', LD, all, x => x.f.com, 3]],
     unicidade: [['Empresas', E, all, x => x.f.dup, 3], ['Contatos', C, all, x => x.f.dup_li, 1]],
