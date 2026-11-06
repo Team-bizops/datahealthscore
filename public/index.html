@@ -583,7 +583,7 @@ window.DHS_DIMS = [
   };
 
   // ---------- listas ----------
-  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', problemas: 'Regras descumpridas', empresa_associada: 'Empresa associada', hard_bounce: 'Hard bounce', leads_divergentes: 'Leads e contatos envolvidos', email_tipo: 'Tipo de e-mail', operacao_lead: 'Operação do lead', operacao_negocio: 'Operação do negócio', intencao_lead: 'Intenção do lead', intencao_negocio: 'Intenção do negócio', qtd_no_grupo: 'Registros no grupo', industria_breeze: 'Indústria (Breeze)', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
+  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', ultima_atividade: 'Última atividade', problemas: 'Regras descumpridas', empresa_associada: 'Empresa associada', hard_bounce: 'Hard bounce', leads_divergentes: 'Leads e contatos envolvidos', email_tipo: 'Tipo de e-mail', operacao_lead: 'Operação do lead', operacao_negocio: 'Operação do negócio', intencao_lead: 'Intenção do lead', intencao_negocio: 'Intenção do negócio', qtd_no_grupo: 'Registros no grupo', industria_breeze: 'Indústria (Breeze)', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
   const LST = {idp: null, regra: '', sit: 'erro', esc: 'total', q: '', rows: [], total: 0, panel: null, objeto: false};
   const panel = () => {
     if (LST.panel) return LST.panel;
@@ -709,5 +709,6 @@ window.DHS_DIMS = [
 })();
 </script>
 
+<script src="/monitor.js"></script>
 <script src="/mapa.js"></script>
 </body></html>
