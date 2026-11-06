@@ -71,6 +71,7 @@ const IND_SEG = (() => {
   put('LEGAL_SERVICES LAW_PRACTICE OUTSOURCING_OFFSHORING FACILITIES_SERVICES CONSUMER_SERVICES BUSINESS_SUPPLIES_AND_EQUIPMENT SECURITY_AND_INVESTIGATIONS TRANSLATION_AND_LOCALIZATION DESIGN GRAPHIC_DESIGN ENVIRONMENTAL_SERVICES IMPORT_AND_EXPORT', ['prestacao de servicos', 'servicos de rh e consultoria', 'marketing']);
   return m;
 })();
+const INTENCAO_OPERACAO = { mi: 'rankmyapp', ri: 'rankmyapp', rmapp: 'rankmyapp', rankmyapp: 'rankmyapp', rmads: 'rankmyads', rankmyads: 'rankmyads' };
 const bate = (oficial, esperado) => sem(oficial).startsWith(esperado) || sem(oficial).includes(esperado);
 
 export function computeAll(d) {
@@ -213,14 +214,19 @@ export function computeAll(d) {
     f.tem_negocio = assoc(l, 'deal').length > 0;
     f.sem_operacao = f.eleg && !opL; f.sem_intencao = f.eleg && !inL;
     const opD = dls.map(d => sem(g(d, 'deals', 'operacao'))).filter(Boolean), inD = dls.map(d => sem(g(d, 'deals', 'intencao'))).filter(Boolean);
-    f.op_base = f.eleg && !!opL && opD.length > 0; f.op_div = f.op_base && !opD.includes(opL);
-    f.int_base = f.eleg && !!inL && inD.length > 0; f.int_div = f.int_base && !inD.includes(inL);
+    // Comparações com o negócio: só leads na etapa Reunião Agendada (SDRs) / Agendado (Executivos)
+    f.na_etapa = LEAD_AGENDADO.includes(String(g(l, 'leads', 'etapa')));
+    const opDn = opD.map(v => v.replace(/[^a-z0-9]/g, ''));
+    f.op_base = f.na_etapa && !!opL && opD.length > 0; f.op_div = f.op_base && !opD.includes(opL);
+    // Intenção de compra do lead × Operação do negócio (MI, RI e RMApp = RankMyApp; RMAds = RankMyAds)
+    const intEsperada = INTENCAO_OPERACAO[inL.replace(/[^a-z0-9]/g, '')];
+    f.int_base = f.na_etapa && !!intEsperada && opDn.length > 0; f.int_div = f.int_base && !opDn.includes(intEsperada);
     f.agend_sem_neg = f.eleg && !f.tem_negocio;
     f.con_base = f.tel_base || f.emp_base || f.op_base || f.int_base;
     f.con = f.tel_div || f.emp_div || f.op_div || f.int_div;
     f.com = f.sem_origem || f.sem_operacao || f.sem_intencao;
     f.saudavel = !(f.con || f.com || f.sem_contato || f.sem_empresa);
-    return { id: l.id, f, nome: g(l, 'leads', 'nome') || '', pipeline: sdr ? 'SDRs' : 'Executivos', etapa: g(l, 'leads', 'etapa') || '', operacao_lead: g(l, 'leads', 'operacao') || '', operacao_negocio: opD.join(' / '), intencao_lead: g(l, 'leads', 'intencao') || '', intencao_negocio: inD.join(' / '),
+    return { id: l.id, f, nome: g(l, 'leads', 'nome') || '', pipeline: sdr ? 'SDRs' : 'Executivos', etapa: g(l, 'leads', 'etapa') || '', operacao_lead: g(l, 'leads', 'operacao') || '', operacao_negocio: opD.join(' / '), intencao_lead: g(l, 'leads', 'intencao') || '', intencao_negocio: opD.join(' / '),
       email_lead: g(l, 'leads', 'email') || '', email_contato: ct ? g(ct, 'contacts', 'email') || '' : '', cargo_lead: cargoL || '', cargo_contato: ct ? g(ct, 'contacts', 'cargo') || '' : '',
       tel_lead: g(l, 'leads', 'telefone') || '', tel_contato: ct ? (g(ct, 'contacts', 'telefone') || g(ct, 'contacts', 'celular') || '') : '' };
   });
@@ -295,8 +301,8 @@ export function computeAll(d) {
   add('CON-05', 'consistencia', 'Nome da empresa diferente do campo "Empresa" dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.nome_base, x => x.f.nome_err), 'Nenhum contato associado tem no campo company (texto) um nome compatível com o da empresa.', listE(x => x.f.nome_base, x => x.f.nome_err));
   add('CON-06', 'consistencia', 'Empresa dos leads diferente da empresa dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.lead_base, x => x.f.lead_err), 'A empresa está associada a pelo menos um lead cujo contato não está associado a ela.', listE(x => x.f.lead_base, x => x.f.lead_err));
   add('CON-07', 'consistencia', 'Lifecycle da empresa diferente do dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.life_base, x => x.f.life_err), 'Lifecycle da empresa diferente do lifecycle mais avançado entre os seus contatos.', listE(x => x.f.life_base, x => x.f.life_err));
-  add('CON-08', 'consistencia', 'Operação do lead diferente da do negócio', 'Lead', 'Oficial', scL(x => x.f.op_base, x => x.f.op_div), 'Leads que estão ou passaram por Reunião Agendada/Agendado, com negócio associado e Operação preenchida nos dois: Operação do lead × Operação do negócio.', listL(x => x.f.op_base, x => x.f.op_div));
-  add('CON-09', 'consistencia', 'Intenção de compra do lead diferente da do negócio', 'Lead', 'Oficial', scL(x => x.f.int_base, x => x.f.int_div), 'Mesma condição do CON-08: Intenção de compra do lead × Intenção de compra do negócio.', listL(x => x.f.int_base, x => x.f.int_div));
+  add('CON-08', 'consistencia', 'Operação do lead diferente da do negócio', 'Lead', 'Oficial', scL(x => x.f.op_base, x => x.f.op_div), 'Leads na etapa Reunião Agendada (SDRs) ou Agendado (Executivos), com negócio associado e Operação preenchida nos dois: Operação do lead × Operação do negócio.', listL(x => x.f.op_base, x => x.f.op_div));
+  add('CON-09', 'consistencia', 'Intenção de compra do lead diferente da Operação do negócio', 'Lead', 'Oficial', scL(x => x.f.int_base, x => x.f.int_div), 'Leads na etapa Reunião Agendada/Agendado com negócio: Intenção de compra do lead × Operação do negócio (MI, RI e RMApp = RankMyApp; RMAds = RankMyAds).', listL(x => x.f.int_base, x => x.f.int_div));
   // Completude
   add('COM-01', 'completude', 'Empresa com algum campo vazio', 'Empresa', 'Oficial', sc(E, all, x => x.f.com), 'Conta como erro se faltar: nome, porte, segmento, país, abrangência, domínio ou CNPJ (este só para empresas Cliente).', listE(all, x => x.f.com));
   for (const [id, k, t, base] of [['COM-01.1', 'sem_nome', 'Sem nome da empresa'], ['COM-01.2', 'sem_porte', 'Sem porte'], ['COM-01.3', 'sem_segmento', 'Sem segmento'], ['COM-01.4', 'sem_pais', 'Sem país'], ['COM-01.5', 'sem_abrang', 'Sem abrangência'], ['COM-01.6', 'sem_dominio', 'Sem domínio'], ['COM-01.7', 'sem_cnpj_cli', 'Cliente sem CNPJ']])
@@ -358,9 +364,9 @@ export function computeAll(d) {
   const penalidadeDims = (notas) => notas.reduce((a, n) => a + (n.v < LIMITE ? PESOS[n.id] * (LIMITE - n.v) : 0), 0);
   const penalidade = (media, pior) => (pior < 50 ? 0.7 * media + 0.3 * pior : pior < 70 ? 0.85 * media + 0.15 * pior : media);
   const statusDe = (v) => (v <= 50 ? 'Crítico' : v <= 70 ? 'Atenção' : v <= 85 ? 'Bom' : v <= 95 ? 'Saudável' : 'Excelente');
-  // Peso dos objetos: fixo (Empresas 40 · Contatos 40 · Leads 20) em Consistência, Completude e Integridade;
+  // Peso dos objetos: fixo (Empresas 45 · Contatos 40 · Leads 15) em Consistência, Completude e Integridade;
   // nas demais, pelo nº de regras com teto de 70%
-  const PESO_OBJ = { Empresas: 0.4, Contatos: 0.4, Leads: 0.2 };
+  const PESO_OBJ = { Empresas: 0.45, Contatos: 0.4, Leads: 0.15 };
   const FIXOS = ['consistencia', 'completude', 'integridade'];
   const pesoObjetos = (id, ok) => {
     if (!FIXOS.includes(id)) return pesos(ok.map(o => o.regras));
@@ -436,13 +442,13 @@ export function computeAll(d) {
     leads_pct: pct(qualidade.L.zero, qualidade.L.n), leads_abertos_pct: pct(qualidade.L.zero_uso, qualidade.L.n_uso), leads_n: LD.length, leads_abertos_n: qualidade.L.n_uso,
     qualidade
   };
-  // DHS final = 80% × (média das dimensões − penalidade) + 20% × média dos % de registros 100% saudáveis
+  // DHS final = média ponderada das dimensões com a regra 50/70; saúde dos registros é informativa
   dhs.forEach(d => {
     const u = d.escopo === 'uso';
     const sr = ['E', 'C', 'L'].map(t => { const q = qualidade[t]; const n = u ? q.n_uso : q.n, z = u ? q.zero_uso : q.zero; return n ? 100 * z / n : null; }).filter(v => v != null);
     d.nota_dimensoes = d.final;
     d.saude_registros = sr.length ? sr.reduce((a, v) => a + v, 0) / sr.length : 0;
-    d.final = 0.8 * d.nota_dimensoes + 0.2 * d.saude_registros;
+    d.final = d.nota_dimensoes; // 100% dimensões; saúde dos registros fica só como diagnóstico
     d.status = statusDe(d.final);
   });
   // ---------- origens ofensoras (empresas e contatos) ----------
@@ -457,5 +463,5 @@ export function computeAll(d) {
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
   const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
-  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, metodologia: 'DHS 2.0 · 80% dimensões (regra 50/70 da pior dimensão) + 20% registros saudáveis · objetos 40/40/20 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
+  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
 }
