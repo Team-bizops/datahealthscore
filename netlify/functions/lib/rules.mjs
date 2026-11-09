@@ -8,8 +8,10 @@ const sem = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, 
 const normDom = (d) => (d || '').trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/[/?#].*$/, '');
 // Domínio raiz: a parte que identifica a empresa, sem subdomínio nem sufixo (vivara.com.br, loja.vivara.com e vivara.com → vivara;
 // ype.ind.br → ype). Sufixos de 2º nível de país (com.br, ind.br, net.br, co.uk…) são tratados como parte do sufixo.
-const SLD = new Set(['com', 'net', 'org', 'gov', 'edu', 'co', 'ind', 'art', 'adv', 'agr', 'eco', 'emp', 'eng', 'esp', 'etc', 'far', 'imb', 'inf', 'jor', 'med', 'mus', 'nom', 'not', 'odo', 'pro', 'psi', 'rec', 'srv', 'tmp', 'tur', 'vet', 'ac', 'tv', 'coop', 'blog', 'app', 'dev', 'log', 'seg', 'ong', 'leg', 'jus', 'mil']);
-const rootKey = (dom) => { const p = String(dom || '').split('.').filter(Boolean); if (p.length < 2) return dom; const tld = p[p.length - 1], sld = p[p.length - 2]; return (p.length >= 3 && tld.length === 2 && SLD.has(sld)) ? p[p.length - 3] : sld; };
+const SLD = new Set(['com', 'net', 'org', 'gov', 'edu', 'co', 'ind', 'art', 'adv', 'agr', 'eco', 'emp', 'eng', 'esp', 'etc', 'far', 'imb', 'inf', 'jor', 'med', 'mus', 'nom', 'not', 'odo', 'pro', 'psi', 'rec', 'srv', 'tmp', 'tur', 'vet', 'ac', 'tv', 'coop', 'blog', 'app', 'dev', 'log', 'seg', 'ong', 'leg', 'jus', 'mil', 'bet', 'tec', 'wiki', 'ws', 'b']);
+// Plataformas que hospedam várias empresas em subdomínios (caedu.gupy.io, loja.myshopify.com): a raiz é o subdomínio.
+const PLATAFORMAS = ['gupy.io', 'myshopify.com', 'wixsite.com', 'github.io', 'blogspot.com', 'wordpress.com', 'herokuapp.com', 'netlify.app', 'vercel.app', 'webflow.io', 'sharepoint.com', 'notion.site', 'vtexcommercestable.com.br', 'hubspotpagebuilder.com'];
+const rootKey = (dom) => { const d = String(dom || ''); const plat = PLATAFORMAS.find(x => d.endsWith('.' + x)); if (plat) return d.slice(0, -plat.length - 1).split('.').pop() + '@' + plat; const p = d.split('.').filter(Boolean); if (p.length < 2) return dom; const tld = p[p.length - 1], sld = p[p.length - 2]; return (p.length >= 3 && tld.length === 2 && SLD.has(sld)) ? p[p.length - 3] : sld; };
 const normName = (s) => (s || '').normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 const digits = (s) => (s || '').replace(/\D/g, '');
 const num = (v) => (vazio(v) ? null : Number(v));
