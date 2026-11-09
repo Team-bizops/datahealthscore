@@ -170,6 +170,11 @@ body{margin:0;background:#f6f8fc}
 .dhs .qleg button{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:3px 6px;border-radius:6px}
 .dhs .qleg button:hover{background:var(--accent-soft)}
 .dhs .qleg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px}
+.dhs td.acao{font-weight:800;white-space:nowrap}
+.dhs td.a-man{color:var(--mint)}
+.dhs td.a-mes{color:var(--accent)}
+.dhs td.a-exc{color:var(--danger)}
+.dhs td.a-rev{color:var(--warn)}
 .dhs .objline{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 12px}
 .dhs .objpill{font-size:.8rem;padding:5px 10px;border-radius:8px;background:var(--danger-soft);color:var(--danger-ink)}
 .dhs .objpill b{margin-right:4px}
@@ -372,7 +377,7 @@ window.DHS_INFO = {
   acuracia: {t:'Acurácia · peso 25%', p:[['Pergunta','O valor preenchido está certo?'],['Regras','Empresa (5): porte × nº de funcionários, CNPJ, país × Breeze, domínio × site, segmento × indústria do Breeze. Contato (3): LinkedIn × Breeze, e-mail público em vez de corporativo e e-mail inválido (hard bounce).'],['Peso dos objetos','Pelo nº de regras: Empresas 5 (62,5%) · Contatos 3 (37,5%).']]},
   consistencia: {t:'Consistência entre objetos · peso 20%', p:[['Pergunta','A mesma informação bate entre Empresas, Contatos, Leads e Negócios?'],['Regras','Empresa (2): empresa dos leads × contatos, lifecycle × contatos. Contato (2): e-mail × empresa, campo Empresa × empresa. Lead (3): telefone × contato; Operação do lead × Operação do negócio e Intenção de compra × Operação do negócio (leads na etapa Reunião Agendada/Agendado).'],['Sem dupla contagem','Cada relação é avaliada de um lado só: o campo Empresa no contato (lista agrupada por empresa) e a empresa do lead na empresa (lista com os leads envolvidos).'],['Peso dos objetos','Empresas 45% · Contatos 40% · Leads 15%.']]},
   completude: {t:'Completude · peso 20%', p:[['Pergunta','Os campos necessários estão preenchidos?'],['Regras','Empresa (7): nome, porte, segmento, país, abrangência, domínio e CNPJ (só Cliente). Contato (5): nome, e-mail, hierarquia do cargo, área do POC e LinkedIn. Lead (3): origem e, nos agendados, Operação e Intenção de compra.'],['Peso dos objetos','Empresas 45% · Contatos 40% · Leads 15%.'],['Detalhe','As linhas com ↳ mostram cada campo vazio e não entram na nota.']]},
-  unicidade: {t:'Duplicidade · peso 20%', p:[['Pergunta','Existe um registro por entidade?'],['Regras','Empresa (3): mesmo domínio, mesmo domínio raiz, mesmo nome. Contato (1): mesmo LinkedIn.'],['Nota','% de registros sem cópia; uma empresa duplicada conta uma vez na nota do objeto.'],['Peso dos objetos','Empresas 70% (teto) · Contatos 30%.']]},
+  unicidade: {t:'Duplicidade · peso 20%', p:[['Pergunta','Existe um registro por entidade?'],['Regras','Empresa (3): mesmo domínio, mesmo domínio raiz, mesmo nome. Contato (1): mesmo LinkedIn.'],['Nota','% de registros sem cópia; uma empresa duplicada conta uma vez na nota do objeto.'],['Peso dos objetos','Empresas 70% (teto) · Contatos 30%.'],['Ação recomendada','A lista mostra os registros de cada grupo juntos, com manter (principal), mesclar no principal, excluir ou revisar, e o motivo. Principal: é cliente › mais negócios › mais contatos e leads › mais campos preenchidos (nos contatos, o e-mail corporativo válido vem primeiro). Domínio raiz e nome saem como Revisar, porque podem ser empresas diferentes.']]},
   integridade: {t:'Integridade · peso 15%', p:[['Pergunta','Os registros estão conectados?'],['Regras','Empresa (1): sem contato. Contato (1): sem empresa. Lead (2): sem contato, sem empresa. INT-05 (lead agendado sem negócio) é só monitoramento.'],['Peso dos objetos','Empresas 45% · Contatos 40% · Leads 15%.']]}
 };
 window.DHS_DIMS = [
@@ -583,7 +588,7 @@ window.DHS_DIMS = [
   };
 
   // ---------- listas ----------
-  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', ultima_atividade: 'Última atividade', problemas: 'Regras descumpridas', empresa_associada: 'Empresa associada', hard_bounce: 'Hard bounce', leads_divergentes: 'Leads e contatos envolvidos', email_tipo: 'Tipo de e-mail', operacao_lead: 'Operação do lead', operacao_negocio: 'Operação do negócio', intencao_lead: 'Intenção do lead', intencao_negocio: 'Intenção do negócio', qtd_no_grupo: 'Registros no grupo', industria_breeze: 'Indústria (Breeze)', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
+  const HEAD = {record_id: 'Record ID', nome: 'Nome', sobrenome: 'Sobrenome', email: 'E-mail', empresa: 'Empresa', cargo: 'Cargo', area_poc: 'Área do POC', dominio: 'Domínio', porte: 'Porte', funcionarios: 'Nº funcionários', segmento: 'Segmento', pais: 'País', abrangencia: 'Abrangência', cnpj: 'CNPJ', lifecycle: 'Lifecycle', origem: 'Origem', em_uso: 'Em uso', grupo_duplicidade: 'Grupo de duplicidade', objeto: 'Objeto', detalhe: 'Detalhe', link_hubspot: 'HubSpot', acao: 'Ação recomendada', motivo: 'Motivo', n_negocios: 'Negócios', n_contatos: 'Contatos', n_leads: 'Leads', campos_preenchidos: 'Campos preenchidos', ultima_atividade: 'Última atividade', problemas: 'Regras descumpridas', empresa_associada: 'Empresa associada', hard_bounce: 'Hard bounce', leads_divergentes: 'Leads e contatos envolvidos', email_tipo: 'Tipo de e-mail', operacao_lead: 'Operação do lead', operacao_negocio: 'Operação do negócio', intencao_lead: 'Intenção do lead', intencao_negocio: 'Intenção do negócio', qtd_no_grupo: 'Registros no grupo', industria_breeze: 'Indústria (Breeze)', website: 'Site', country: 'Country (Breeze)', linkedin: 'LinkedIn', hs_linkedin_url: 'LinkedIn (Breeze)', hs_seniority: 'Senioridade (Breeze)', hs_role: 'Função (Breeze)', pipeline: 'Pipeline', email_lead: 'E-mail do lead', email_contato: 'E-mail do contato', cargo_lead: 'Cargo do lead', cargo_contato: 'Cargo do contato', tel_lead: 'Telefone do lead', tel_contato: 'Telefone do contato'};
   const LST = {idp: null, regra: '', sit: 'erro', esc: 'total', q: '', rows: [], total: 0, panel: null, objeto: false};
   const panel = () => {
     if (LST.panel) return LST.panel;
@@ -610,15 +615,18 @@ window.DHS_DIMS = [
       const tr = document.createElement('tr');
       cols.forEach(c => { const td = document.createElement('td');
         if (c === 'link_hubspot' && rw[c]) { const a = document.createElement('a'); a.href = rw[c]; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir'; td.appendChild(a); } else td.textContent = rw[c] == null ? '' : rw[c];
+        if (c === 'acao' && rw[c]) { td.className = 'acao ' + ({'Manter (principal)': 'a-man', 'Mesclar no principal': 'a-mes', 'Excluir': 'a-exc', 'Revisar': 'a-rev'}[rw[c]] || ''); }
+        if (c === 'motivo') td.style.whiteSpace = 'normal';
         tr.appendChild(td); });
       body.appendChild(tr); });
-    p.querySelector('.meta').textContent = `${nint(rows.length)} registro(s)${LST.q ? ' encontrados' : ''}${LST.total > LST.rows.length ? ` · mostrando ${nint(LST.rows.length)} de ${nint(LST.total)}` : ''}${rows.length > 500 ? ' · a tela mostra os 500 primeiros, o CSV leva todos' : ''}`;
+    const rs = LST.resumo && LST.sit === 'erro' ? ` · ${nint(LST.resumo.grupos)} grupos: ${['Manter (principal)', 'Mesclar no principal', 'Excluir', 'Revisar'].filter(k => LST.resumo[k]).map(k => `${nint(LST.resumo[k])} ${k.toLowerCase()}`).join(' · ')}` : '';
+    p.querySelector('.meta').textContent = `${nint(rows.length)} registro(s)${rs}${LST.q ? ' encontrados' : ''}${LST.total > LST.rows.length ? ` · mostrando ${nint(LST.rows.length)} de ${nint(LST.total)}` : ''}${rows.length > 500 ? ' · a tela mostra os 500 primeiros, o CSV leva todos' : ''}`;
   };
   const carregar = async () => {
     const p = LST.panel; p.querySelector('.meta').textContent = 'Carregando registros…'; p.querySelector('tbody').innerHTML = '';
     const r = await api(`/api/lista?idp=${encodeURIComponent(LST.idp)}&situacao=${LST.sit}&escopo=${LST.esc}`);
     if (!r.ok) { p.querySelector('.meta').textContent = 'Não foi possível carregar a lista.'; return; }
-    LST.rows = r.j.rows; LST.total = r.j.total; desenhar();
+    LST.rows = r.j.rows; LST.total = r.j.total; LST.resumo = r.j.resumo || null; desenhar();
   };
   const baixar = () => {
     const rows = filtradas(); if (!rows.length) return;
