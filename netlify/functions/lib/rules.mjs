@@ -366,7 +366,7 @@ export function computeAll(d) {
       const resumo = { grupos: grupos.size, 'Manter (principal)': 0, 'Mesclar no principal': 0, 'Excluir': 0, 'Revisar': 0 };
       for (const membros of grupos.values()) {
         const ord = [...membros].sort((a, b) => melhor(info[a], info[b]));
-        const p = info[ord[0]];
+        const p = info[ord[0]]; const cobertos = new Set(p.cheios);
         ord.forEach((i, pos) => {
           const o = info[i]; ix.ordem[i] = pos;
           if (pos === 0) {
@@ -374,12 +374,12 @@ export function computeAll(d) {
             ix.acao[i] = 'Manter (principal)';
             ix.motivo[i] = `Principal: ${v.length ? v.join(', ') + ', ' : 'sem vínculos, '}${o.campos}/${CAMPOS.length} campos${tipo === 'C' ? (o.valido ? ', e-mail corporativo válido' : ', e-mail público ou inválido') : ''}`;
           } else {
-            const v = vinculos(o, tipo), novos = o.cheios.filter(k => !p.cheios.includes(k)).map(k => rotulo[k]);
+            const v = vinculos(o, tipo), novos = o.cheios.filter(k => !cobertos.has(k)).map(k => rotulo[k]);
             const temAlgo = v.length > 0 || novos.length > 0;
             const det = [v.length ? v.join(', ') : '', novos.length ? `tem ${novos.join(', ')} que falta no principal` : ''].filter(Boolean).join('; ');
             if (revisar) { ix.acao[i] = 'Revisar'; ix.motivo[i] = `Confirmar se é a mesma empresa. Se for: ${temAlgo ? 'mesclar no principal (' + det + ')' : 'excluir (sem vínculos e sem dado novo)'}`; }
-            else if (temAlgo) { ix.acao[i] = 'Mesclar no principal'; ix.motivo[i] = `Mesclar: ${det}`; }
-            else { ix.acao[i] = 'Excluir'; ix.motivo[i] = `Sem negócios, ${tipo === 'E' ? 'contatos, ' : ''}leads e nenhum dado que falte no principal`; }
+            else if (temAlgo) { ix.acao[i] = 'Mesclar no principal'; ix.motivo[i] = `Mesclar: ${det}`; o.cheios.forEach(k => cobertos.add(k)); }
+            else { ix.acao[i] = 'Excluir'; ix.motivo[i] = `Sem negócios, ${tipo === 'E' ? 'contatos, ' : ''}leads e nenhum dado que falte no principal (ou que já venha de outro registro mesclado)`; }
           }
           resumo[ix.acao[i]]++;
         });
