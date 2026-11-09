@@ -6,7 +6,10 @@ const PUB = /^(gmail|hotmail|outlook|yahoo|icloud|live|bol|uol|terra)\./;
 const vazio = (v) => v == null || String(v).trim() === '';
 const sem = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 const normDom = (d) => (d || '').trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/[/?#].*$/, '');
-const rootKey = (dom) => { let m = dom.match(/([a-z0-9-]+)\.(?:com|net|org|gov|edu|co)\.[a-z]{2}$/); if (m) return m[1]; m = dom.match(/([a-z0-9-]+)\.[a-z]{2,}$/); return m ? m[1] : dom; };
+// Domínio raiz: a parte que identifica a empresa, sem subdomínio nem sufixo (vivara.com.br, loja.vivara.com e vivara.com → vivara;
+// ype.ind.br → ype). Sufixos de 2º nível de país (com.br, ind.br, net.br, co.uk…) são tratados como parte do sufixo.
+const SLD = new Set(['com', 'net', 'org', 'gov', 'edu', 'co', 'ind', 'art', 'adv', 'agr', 'eco', 'emp', 'eng', 'esp', 'etc', 'far', 'imb', 'inf', 'jor', 'med', 'mus', 'nom', 'not', 'odo', 'pro', 'psi', 'rec', 'srv', 'tmp', 'tur', 'vet', 'ac', 'tv', 'coop', 'blog', 'app', 'dev', 'log', 'seg', 'ong', 'leg', 'jus', 'mil']);
+const rootKey = (dom) => { const p = String(dom || '').split('.').filter(Boolean); if (p.length < 2) return dom; const tld = p[p.length - 1], sld = p[p.length - 2]; return (p.length >= 3 && tld.length === 2 && SLD.has(sld)) ? p[p.length - 3] : sld; };
 const normName = (s) => (s || '').normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 const digits = (s) => (s || '').replace(/\D/g, '');
 const num = (v) => (vazio(v) ? null : Number(v));
@@ -104,6 +107,27 @@ export function computeAll(d) {
     if (okd) { const r = rootKey(dom); if (!rootDoms.has(r)) rootDoms.set(r, new Set()); rootDoms.get(r).add(dom); }
     if (nm.length >= 3) { if (!nameDoms.has(nm)) nameDoms.set(nm, new Set()); nameDoms.get(nm).add(okd ? dom : ''); }
   }
+  // Mesmo nome com certeza de ser a mesma empresa: mesmo país (país vazio acompanha o grupo) e sem domínio próprio diferente.
+  // Registros de outro país ou com outro domínio raiz ficam de fora (podem ser filial ou outra empresa).
+  const nomeCerto = new Map(); // id → [grupo, tamanho]
+  {
+    const porNome = new Map();
+    for (const c of emps) { const nm = normName(g(c, 'companies', 'nome')); if (nm.length < 3) continue; if (!porNome.has(nm)) porNome.set(nm, []); porNome.get(nm).push(c); }
+    for (const [nm, ms] of porNome) {
+      if (ms.length < 2) continue;
+      const pk = (c) => (vazio(g(c, 'companies', 'pais')) ? '' : paisKey(g(c, 'companies', 'pais')));
+      const pc = new Map(); ms.forEach(c => { const k = pk(c); if (k) pc.set(k, (pc.get(k) || 0) + 1); });
+      const paisDom = [...pc.entries()].sort((a, b) => b[1] - a[1])[0];
+      const mesmoPais = ms.filter(c => !paisDom || !pk(c) || pk(c) === paisDom[0]);
+      const rk = (c) => { const d = normDom(g(c, 'companies', 'dominio')); return d && !PUB.test(d) ? rootKey(d) : ''; };
+      const rc = new Map(); mesmoPais.forEach(c => { const r = rk(c); if (r) rc.set(r, (rc.get(r) || 0) + 1); });
+      const raizDom = [...rc.entries()].sort((a, b) => b[1] - a[1])[0];
+      const certos = mesmoPais.filter(c => !rk(c) || !raizDom || rk(c) === raizDom[0]);
+      if (certos.length < 2) continue;
+      const rot = `${g(certos[0], 'companies', 'nome') || nm}${paisDom ? ' · ' + paisDom[0].toUpperCase() : ''}${raizDom ? ' · ' + raizDom[0] : ''}`;
+      certos.forEach(c => nomeCerto.set(c.id, [rot, certos.length]));
+    }
+  }
   const E = emps.map(c => {
     const dom = normDom(g(c, 'companies', 'dominio')), nm = normName(g(c, 'companies', 'nome'));
     const porte = g(c, 'companies', 'porte'), func = num(g(c, 'companies', 'funcionarios'));
@@ -123,7 +147,7 @@ export function computeAll(d) {
       sem_contato: (num(g(c, 'companies', 'n_contatos')) || 0) === 0
     };
     f.dup_root = okDom && byRoot.get(rootKey(dom)) > 1 && rootDoms.get(rootKey(dom)).size > 1;
-    f.dup_nome = nm.length >= 3 && byName.get(nm) > 1 && (nameDoms.get(nm).size > 1 || nameDoms.get(nm).has(''));
+    f.dup_nome = nomeCerto.has(c.id);
     f.porte_err = f.porte_base && !porteCoerente(porte, func);
     f.cnpj_err = f.cnpj_base && !cnpjValido(cn);
     f.pais_err = f.pais_base && paisKey(pais) !== paisKey(country);
@@ -138,7 +162,7 @@ export function computeAll(d) {
     f.saudavel = !(f.acu || f.com || f.dup || f.sem_contato);
     const uso = (num(g(c, 'companies', 'n_negocios')) || 0) > 0 || life === 'customer' || empLeadAberto.has(c.id);
     const grupo = f.dup_dom ? dom : f.dup_root ? rootKey(dom) : f.dup_nome ? nm : '';
-    const grupos = { dom: okDom ? dom : '', dom_n: okDom ? byDom.get(dom) : 0, raiz: okDom ? rootKey(dom) : '', raiz_n: okDom ? byRoot.get(rootKey(dom)) : 0, nome: nm, nome_n: nm.length >= 3 ? byName.get(nm) : 0 };
+    const grupos = { dom: okDom ? dom : '', dom_n: okDom ? byDom.get(dom) : 0, raiz: okDom ? rootKey(dom) : '', raiz_n: okDom ? byRoot.get(rootKey(dom)) : 0, nome: nomeCerto.has(c.id) ? nomeCerto.get(c.id)[0] : nm, nome_n: nomeCerto.has(c.id) ? nomeCerto.get(c.id)[1] : 0 };
     const row = { record_id: c.id, nome: g(c, 'companies', 'nome') || '', dominio: g(c, 'companies', 'dominio') || '', website: g(c, 'companies', 'website') || '', grupo_duplicidade: grupo,
       porte: porte || '', funcionarios: func == null ? '' : String(func), segmento: g(c, 'companies', 'segmento') || '', pais: pais || '', country: country || '',
       abrangencia: g(c, 'companies', 'abrangencia') || '', cnpj: g(c, 'companies', 'cnpj') || '', linkedin: li || '', origem: g(c, 'companies', 'origem') || '(vazio)',
@@ -329,8 +353,8 @@ export function computeAll(d) {
   add('COM-03.3', 'completude', '↳ Agendado sem Intenção de compra', 'Lead', 'Detalhe', scL(x => x.f.eleg, x => x.f.sem_intencao), 'Detalhe do COM-03, fora da nota.', listL(x => x.f.eleg, x => x.f.sem_intencao));
   // Duplicidade
   add('UNI-01', 'unicidade', 'Empresas com o mesmo domínio', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_dom), 'Domínio idêntico (sem www e protocolo). A lista mostra todos os registros de cada domínio juntos.', idxG('E', E, x => x.f.dup_dom, x => x.grupos.dom, x => x.grupos.dom_n));
-  add('UNI-02', 'unicidade', 'Empresas com o mesmo domínio raiz', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_root), 'Mesmo domínio raiz com domínios diferentes. A lista mostra todos os registros do domínio raiz juntos.', idxG('E', E, x => x.f.dup_root, x => x.grupos.raiz, x => x.grupos.raiz_n));
-  add('UNI-03', 'unicidade', 'Empresas com o mesmo nome', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_nome), 'Mesmo nome sem acento, espaço e pontuação, com domínios diferentes ou sem domínio. A lista mostra todas as empresas com o mesmo nome juntas.', idxG('E', E, x => x.f.dup_nome, x => x.grupos.nome, x => x.grupos.nome_n));
+  add('UNI-02', 'unicidade', 'Empresas com o mesmo domínio raiz', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_root), 'Mesmo domínio raiz com domínios diferentes, como vivara.com × vivara.com.br × loja.vivara.com (sufixos como com.br e ind.br são ignorados). Pode ser outra unidade ou site de outro país, por isso a ação é Revisar.', idxG('E', E, x => x.f.dup_root, x => x.grupos.raiz, x => x.grupos.raiz_n));
+  add('UNI-03', 'unicidade', 'Empresas com o mesmo nome', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_nome), 'Mesmo nome (sem acento, espaço e pontuação) e mesmo país, sem domínio próprio diferente. Registros do mesmo nome em outro país ou com outro domínio raiz ficam de fora, porque podem ser filial ou outra empresa. A lista traz a ação recomendada em cada grupo.', idxG('E', E, x => x.f.dup_nome, x => x.grupos.nome, x => x.grupos.nome_n));
   add('UNI-04', 'unicidade', 'Contatos com o mesmo LinkedIn', 'Contato', 'Oficial', sc(C, all, x => x.f.dup_li), 'Mesmo perfil linkedin.com/in/… em mais de um contato. A lista mostra os contatos de cada perfil juntos.', idxG('C', C, x => x.f.dup_li, x => 'linkedin.com/in/' + x.grupos.li, x => x.grupos.li_n));
   // ---------- Duplicidade: recomendação de ação por grupo (manter, mesclar, excluir ou revisar) ----------
   {
@@ -388,7 +412,7 @@ export function computeAll(d) {
     };
     classificar('UNI-01', 'E', false);
     classificar('UNI-02', 'E', true);
-    classificar('UNI-03', 'E', true);
+    classificar('UNI-03', 'E', false);
     classificar('UNI-04', 'C', false);
   }
   // Integridade
