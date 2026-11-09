@@ -24,12 +24,14 @@ export default async (req) => {
     const sit = url.searchParams.get('situacao') === 'ok' ? false : true;
     const uso = url.searchParams.get('escopo') === 'uso';
     let rows;
+    // o grupo da lista vem do IDP (domínio, domínio raiz ou nome); o campo da tabela não pode sobrescrever
+    const semGrupo = (r) => { const { grupo_duplicidade, ...resto } = r || {}; return resto; };
     const ix = await st.get(`idx/${idp}`, { type: 'json' });
     if (ix) {
       const tab = (await st.get(`tab/${ix.t}`, { type: 'json' })) || [];
       const err = new Set(ix.e);
       rows = ix.b.map(i => (ix.grp && ix.grp[i] != null
-        ? { grupo_duplicidade: ix.grp[i], qtd_no_grupo: ix.qtd[ix.grp[i]], ...(ix.acao ? { acao: ix.acao[i], motivo: ix.motivo[i] } : {}), ...tab[i], _erro: err.has(i), _g: ix.grp[i], _o: ix.ordem ? ix.ordem[i] : 0 }
+        ? { grupo_duplicidade: ix.grp[i], qtd_no_grupo: ix.qtd[ix.grp[i]], ...(ix.acao ? { acao: ix.acao[i], motivo: ix.motivo[i] } : {}), ...semGrupo(tab[i]), _erro: err.has(i), _g: ix.grp[i], _o: ix.ordem ? ix.ordem[i] : 0 }
         : { ...tab[i], _erro: err.has(i) }));
     } else rows = (await st.get(`lists/${idp}`, { type: 'json' })) || [];
     let sel = rows.filter(r => r._erro === sit && (!uso || r._uso));
