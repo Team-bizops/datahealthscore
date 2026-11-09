@@ -29,12 +29,17 @@ export default async (req) => {
       const tab = (await st.get(`tab/${ix.t}`, { type: 'json' })) || [];
       const err = new Set(ix.e);
       rows = ix.b.map(i => (ix.grp && ix.grp[i] != null
-        ? { grupo_duplicidade: ix.grp[i], qtd_no_grupo: ix.qtd[ix.grp[i]], ...tab[i], _erro: err.has(i), _g: ix.grp[i] }
+        ? { grupo_duplicidade: ix.grp[i], qtd_no_grupo: ix.qtd[ix.grp[i]], ...(ix.acao ? { acao: ix.acao[i], motivo: ix.motivo[i] } : {}), ...tab[i], _erro: err.has(i), _g: ix.grp[i], _o: ix.ordem ? ix.ordem[i] : 0 }
         : { ...tab[i], _erro: err.has(i) }));
     } else rows = (await st.get(`lists/${idp}`, { type: 'json' })) || [];
     let sel = rows.filter(r => r._erro === sit && (!uso || r._uso));
-    if (ix && ix.grp && sit) sel = sel.sort((a, b) => (b.qtd_no_grupo - a.qtd_no_grupo) || String(a._g).localeCompare(String(b._g)) || String(a.nome).localeCompare(String(b.nome))).map(({ _g, ...r }) => r);
-    return json({ total: sel.length, rows: sel.slice(0, 10000).map(({ _erro, _uso, ...r }) => r) });
+    let resumo = null;
+    if (ix && ix.grp && sit) {
+      sel = sel.sort((a, b) => (b.qtd_no_grupo - a.qtd_no_grupo) || String(a._g).localeCompare(String(b._g)) || ((a._o || 0) - (b._o || 0)) || String(a.nome).localeCompare(String(b.nome)));
+      if (ix.acao) { resumo = { grupos: new Set(sel.map(r => r._g)).size }; sel.forEach(r => { if (r.acao) resumo[r.acao] = (resumo[r.acao] || 0) + 1; }); }
+      sel = sel.map(({ _g, _o, ...r }) => r);
+    }
+    return json({ total: sel.length, resumo, rows: sel.slice(0, 10000).map(({ _erro, _uso, ...r }) => r) });
   }
   if (rota === 'run' && req.method === 'POST') {
     const s = await st.get('status', { type: 'json' });
