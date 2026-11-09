@@ -275,7 +275,7 @@ export function computeAll(d) {
   const sc = (arr, base, err) => ({ tb: cnt(arr, base), te: cnt(arr, x => base(x) && err(x)), ub: cnt(arr, x => x.uso && base(x)), ue: cnt(arr, x => x.uso && base(x) && err(x)) });
   const scL = (base, err) => sc(LD.map(x => ({ ...x, uso: x.f.aberto })), base, err);
   const all = () => true;
-  const lists = {}, IDP = [];
+  const lists = {}, IDP = [], acoesDup = {};
   const add = (idp, dim, regra, objeto, status, s, como, lista) => {
     IDP.push({ idp, dimensao: dim, regra, objeto, status, como, nota: status === 'Oficial' || status === 'Em validação', lista: !!lista,
       total_base: s ? s.tb : null, total: s ? s.te : null, total_ok: s ? s.tb - s.te : null, total_pct: s && s.tb ? s.te / s.tb : null,
@@ -332,6 +332,65 @@ export function computeAll(d) {
   add('UNI-02', 'unicidade', 'Empresas com o mesmo domínio raiz', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_root), 'Mesmo domínio raiz com domínios diferentes. A lista mostra todos os registros do domínio raiz juntos.', idxG('E', E, x => x.f.dup_root, x => x.grupos.raiz, x => x.grupos.raiz_n));
   add('UNI-03', 'unicidade', 'Empresas com o mesmo nome', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_nome), 'Mesmo nome sem acento, espaço e pontuação, com domínios diferentes ou sem domínio. A lista mostra todas as empresas com o mesmo nome juntas.', idxG('E', E, x => x.f.dup_nome, x => x.grupos.nome, x => x.grupos.nome_n));
   add('UNI-04', 'unicidade', 'Contatos com o mesmo LinkedIn', 'Contato', 'Oficial', sc(C, all, x => x.f.dup_li), 'Mesmo perfil linkedin.com/in/… em mais de um contato. A lista mostra os contatos de cada perfil juntos.', idxG('C', C, x => x.f.dup_li, x => 'linkedin.com/in/' + x.grupos.li, x => x.grupos.li_n));
+  // ---------- Duplicidade: recomendação de ação por grupo (manter, mesclar, excluir ou revisar) ----------
+  {
+    const leadsPorEmp = new Map(), leadsPorCt = new Map();
+    for (const l of leadsF) { assoc(l, 'compan').forEach(i => leadsPorEmp.set(i, (leadsPorEmp.get(i) || 0) + 1)); assoc(l, 'contact').forEach(i => leadsPorCt.set(i, (leadsPorCt.get(i) || 0) + 1)); }
+    const CAMPOS_E = [['nome', 'nome'], ['porte', 'porte'], ['segmento', 'segmento'], ['pais', 'país'], ['abrangencia', 'abrangência'], ['dominio', 'domínio'], ['cnpj', 'CNPJ']];
+    const CAMPOS_C = [['nome', 'nome'], ['sobrenome', 'sobrenome'], ['email', 'e-mail'], ['cargo', 'hierarquia do cargo'], ['area_poc', 'área do POC'], ['linkedin', 'LinkedIn']];
+    const infoE = E.map((x, i) => {
+      const c = comp.get(x.id), r = TAB.E[i];
+      const o = { id: x.id, cli: String(g(c, 'companies', 'lifecycle') || '').toLowerCase() === 'customer', neg: num(g(c, 'companies', 'n_negocios')) || 0, ct: num(g(c, 'companies', 'n_contatos')) || 0, ld: leadsPorEmp.get(x.id) || 0 };
+      o.cheios = CAMPOS_E.filter(([k]) => !vazio(r[k])).map(([k]) => k); o.campos = o.cheios.length;
+      r.n_negocios = o.neg; r.n_contatos = o.ct; r.n_leads = o.ld; r.campos_preenchidos = `${o.campos}/${CAMPOS_E.length}`;
+      return o;
+    });
+    const infoC = C.map((x, i) => {
+      const c = ctById.get(x.id), r = TAB.C[i];
+      const o = { id: x.id, valido: !!r.email && !x.f.pub_err && !x.f.bounce_err, neg: num(g(c, 'contacts', 'n_negocios')) || 0, ld: leadsPorCt.get(x.id) || 0, ct: 0, cli: false };
+      o.cheios = CAMPOS_C.filter(([k]) => !vazio(r[k])).map(([k]) => k); o.campos = o.cheios.length;
+      r.n_negocios = o.neg; r.n_leads = o.ld; r.campos_preenchidos = `${o.campos}/${CAMPOS_C.length}`;
+      return o;
+    });
+    const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+    const vinculos = (o, tipo) => [o.cli ? 'cliente' : '', o.neg ? plural(o.neg, 'negócio', 'negócios') : '', tipo === 'E' && o.ct ? plural(o.ct, 'contato', 'contatos') : '', o.ld ? plural(o.ld, 'lead', 'leads') : ''].filter(Boolean);
+    const classificar = (idp, tipo, revisar) => {
+      const ix = lists[idp]; if (!ix || !ix.grp) return;
+      const info = tipo === 'E' ? infoE : infoC, CAMPOS = tipo === 'E' ? CAMPOS_E : CAMPOS_C, rotulo = Object.fromEntries(CAMPOS);
+      const melhor = (a, b) => tipo === 'E'
+        ? (b.cli - a.cli) || (b.neg - a.neg) || ((b.ct + b.ld) - (a.ct + a.ld)) || (b.campos - a.campos) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true })
+        : (b.valido - a.valido) || (b.neg - a.neg) || (b.ld - a.ld) || (b.campos - a.campos) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+      const grupos = new Map();
+      for (const i of ix.e) { const k = ix.grp[i]; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(i); }
+      ix.acao = {}; ix.motivo = {}; ix.ordem = {};
+      const resumo = { grupos: grupos.size, 'Manter (principal)': 0, 'Mesclar no principal': 0, 'Excluir': 0, 'Revisar': 0 };
+      for (const membros of grupos.values()) {
+        const ord = [...membros].sort((a, b) => melhor(info[a], info[b]));
+        const p = info[ord[0]];
+        ord.forEach((i, pos) => {
+          const o = info[i]; ix.ordem[i] = pos;
+          if (pos === 0) {
+            const v = vinculos(o, tipo);
+            ix.acao[i] = 'Manter (principal)';
+            ix.motivo[i] = `Principal: ${v.length ? v.join(', ') + ', ' : 'sem vínculos, '}${o.campos}/${CAMPOS.length} campos${tipo === 'C' ? (o.valido ? ', e-mail corporativo válido' : ', e-mail público ou inválido') : ''}`;
+          } else {
+            const v = vinculos(o, tipo), novos = o.cheios.filter(k => !p.cheios.includes(k)).map(k => rotulo[k]);
+            const temAlgo = v.length > 0 || novos.length > 0;
+            const det = [v.length ? v.join(', ') : '', novos.length ? `tem ${novos.join(', ')} que falta no principal` : ''].filter(Boolean).join('; ');
+            if (revisar) { ix.acao[i] = 'Revisar'; ix.motivo[i] = `Confirmar se é a mesma empresa. Se for: ${temAlgo ? 'mesclar no principal (' + det + ')' : 'excluir (sem vínculos e sem dado novo)'}`; }
+            else if (temAlgo) { ix.acao[i] = 'Mesclar no principal'; ix.motivo[i] = `Mesclar: ${det}`; }
+            else { ix.acao[i] = 'Excluir'; ix.motivo[i] = `Sem negócios, ${tipo === 'E' ? 'contatos, ' : ''}leads e nenhum dado que falte no principal`; }
+          }
+          resumo[ix.acao[i]]++;
+        });
+      }
+      ix.resumo = resumo; acoesDup[idp] = resumo;
+    };
+    classificar('UNI-01', 'E', false);
+    classificar('UNI-02', 'E', true);
+    classificar('UNI-03', 'E', true);
+    classificar('UNI-04', 'C', false);
+  }
   // Integridade
   add('INT-01', 'integridade', 'Empresa sem contato', 'Empresa', 'Oficial', sc(E, all, x => x.f.sem_contato), 'Empresa sem nenhum contato associado.', listE(all, x => x.f.sem_contato));
   add('INT-02', 'integridade', 'Contato sem empresa', 'Contato', 'Oficial', sc(C, all, x => x.f.sem_empresa), 'Contato sem nenhuma empresa associada.', listC(all, x => x.f.sem_empresa));
@@ -492,5 +551,5 @@ export function computeAll(d) {
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
   const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
-  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, monitor, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
+  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, monitor, acoes_duplicidade: acoesDup, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
 }
