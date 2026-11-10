@@ -31,7 +31,7 @@ export default async (req) => {
       const tab = (await st.get(`tab/${ix.t}`, { type: 'json' })) || [];
       const err = new Set(ix.e);
       rows = ix.b.map(i => (ix.grp && ix.grp[i] != null
-        ? { grupo_duplicidade: ix.grp[i], qtd_no_grupo: ix.qtd[ix.grp[i]], ...(ix.acao ? { acao: ix.acao[i], motivo: ix.motivo[i] } : {}), ...semGrupo(tab[i]), _erro: err.has(i), _g: ix.grp[i], _o: ix.ordem ? ix.ordem[i] : 0 }
+        ? { grupo_duplicidade: ix.grp[i], qtd_no_grupo: ix.qtd[ix.grp[i]], ...(ix.acao ? { acao: ix.acao[i], motivo: ix.motivo[i], principal_id: ix.pid ? ix.pid[i] : undefined, principal_nome: ix.pnome ? ix.pnome[i] : undefined } : {}), ...semGrupo(tab[i]), _erro: err.has(i), _g: ix.grp[i], _o: ix.ordem ? ix.ordem[i] : 0 }
         : { ...tab[i], _erro: err.has(i) }));
     } else rows = (await st.get(`lists/${idp}`, { type: 'json' })) || [];
     let sel = rows.filter(r => r._erro === sit && (!uso || r._uso));
