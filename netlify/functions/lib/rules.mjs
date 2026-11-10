@@ -3,6 +3,9 @@ import { PESOS, LEAD_PIPELINES, LEAD_FECHADO, LEAD_AGENDADO, PORTAL, TETO_OBJETO
 import { assoc } from './hubspot.mjs';
 
 const PUB = /^(gmail|hotmail|outlook|yahoo|icloud|live|bol|uol|terra)\./;
+// Domínios que não identificam a empresa: redes sociais, encurtadores e links de perfil usados no lugar do site
+const NAO_ID = /^(instagram|facebook|fb|linkedin|lnkd|youtube|youtu|twitter|x|tiktok|linktr|wa|whatsapp|api\.whatsapp|bit|t|sites\.google|google|forms\.gle|linktree)\./;
+const domEmpresaOk = (d) => !!d && d.includes('.') && !PUB.test(d) && !NAO_ID.test(d);
 const vazio = (v) => v == null || String(v).trim() === '';
 const sem = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 const normDom = (d) => (d || '').trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/[/?#].*$/, '');
@@ -11,7 +14,7 @@ const normDom = (d) => (d || '').trim().toLowerCase().replace(/^(https?:\/\/)?(w
 const SLD = new Set(['com', 'net', 'org', 'gov', 'edu', 'co', 'ind', 'art', 'adv', 'agr', 'eco', 'emp', 'eng', 'esp', 'etc', 'far', 'imb', 'inf', 'jor', 'med', 'mus', 'nom', 'not', 'odo', 'pro', 'psi', 'rec', 'srv', 'tmp', 'tur', 'vet', 'ac', 'tv', 'coop', 'blog', 'app', 'dev', 'log', 'seg', 'ong', 'leg', 'jus', 'mil', 'bet', 'tec', 'wiki', 'ws', 'b', 'gob', 'fin', 'gub', 'nic', 'int']);
 // Plataformas que hospedam várias empresas em subdomínios (caedu.gupy.io, loja.myshopify.com): a raiz é o subdomínio.
 const PLATAFORMAS = ['gupy.io', 'myshopify.com', 'wixsite.com', 'github.io', 'blogspot.com', 'wordpress.com', 'herokuapp.com', 'netlify.app', 'vercel.app', 'webflow.io', 'sharepoint.com', 'notion.site', 'vtexcommercestable.com.br', 'hubspotpagebuilder.com', 'onmicrosoft.com'];
-const rootKey = (dom) => { const d = String(dom || ''); const plat = PLATAFORMAS.find(x => d.endsWith('.' + x)); if (plat) return d.slice(0, -plat.length - 1).split('.')[0] + '@' + plat; const p = d.split('.').filter(Boolean); if (p.length < 2) return dom; const tld = p[p.length - 1], sld = p[p.length - 2]; if (p.length >= 3 && tld.length === 2 && SLD.has(sld)) { const r = p[p.length - 3]; return (sld === 'gov' && r.length === 2 && p.length >= 4) ? p[p.length - 4] : r; } return sld; };
+const rootKey = (dom) => { const d = String(dom || ''); const plat = PLATAFORMAS.find(x => d.endsWith('.' + x)); if (plat) return d.slice(0, -plat.length - 1).split('.')[0] + '@' + plat; const p = d.split('.').filter(Boolean); if (p.length < 2) return dom; const tld = p[p.length - 1], sld = p[p.length - 2]; if (p.length >= 3 && tld.length === 2 && (SLD.has(sld) || sld.length <= 2)) { const r = p[p.length - 3]; return (sld === 'gov' && r.length === 2 && p.length >= 4) ? p[p.length - 4] : r; } return sld; };
 const normName = (s) => (s || '').normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 const digits = (s) => (s || '').replace(/\D/g, '');
 const num = (v) => (vazio(v) ? null : Number(v));
@@ -39,6 +42,21 @@ const PAISES = { brasil: 'br', brazil: 'br', br: 'br', 'estados unidos': 'us', '
   'reino unido': 'gb', 'united kingdom': 'gb', inglaterra: 'gb', alemanha: 'de', germany: 'de', franca: 'fr', france: 'fr', italia: 'it', italy: 'it', india: 'in', china: 'cn', japao: 'jp', japan: 'jp',
   'panama': 'pa', 'costa rica': 'cr', guatemala: 'gt', 'republica dominicana': 'do', 'dominican republic': 'do', israel: 'il', holanda: 'nl', netherlands: 'nl', 'paises baixos': 'nl', irlanda: 'ie', ireland: 'ie' };
 const paisKey = (v) => { const k = sem(v); return PAISES[k] || k; };
+// País deduzido pelo sufixo do domínio (só quando o campo país está vazio). Sufixos usados como genéricos (.io, .ai, .co…) não contam.
+const CC_GENERICO = new Set(['io', 'ai', 'me', 'tv', 'co', 'ly', 'gg', 'so', 'to', 'cc', 'ws', 'fm', 'la', 'is', 'it', 'us', 'eu', 'vc', 'ag', 'im', 'sh', 'app']);
+const paisDoDominio = (d) => { const p = String(d || '').split('.').filter(Boolean); if (p.length < 2) return ''; const t = p[p.length - 1]; if (t.length !== 2) return ''; if (CC_GENERICO.has(t) && !(p.length >= 3 && SLD.has(p[p.length - 2]))) return ''; return t === 'uk' ? 'gb' : t; };
+// Domínio raiz sem o marcador de plataforma, só letras e números
+const raizLimpa = (d) => String(rootKey(d) || '').split('@')[0].replace(/[^a-z0-9]/g, '');
+// O nome da empresa corresponde ao domínio? (contém a raiz, a raiz contém o nome, uma palavra relevante ou as iniciais)
+const STOP_NOME = new Set(['grupo', 'group', 'brasil', 'brazil', 'the', 'inc', 'ltda', 'eireli', 'holding', 'cia', 'companhia', 'company', 'corp', 'corporation', 'industria', 'industrias', 'comercio', 'servicos', 'and', 'international', 'internacional', 'global', 'latam', 'america', 'south', 'mexico', 'argentina', 'chile', 'colombia', 'peru', 'digital', 'tecnologia', 'tech', 'solucoes', 'participacoes', 'oficial', 'sas', 'spa', 'ltd', 'llc', 'gmbh']);
+const nomeBateDominio = (nome, raiz) => {
+  if (!raiz) return true; const nk = normName(nome); if (!nk) return true;
+  if (nk.includes(raiz) || raiz.includes(nk)) return true;
+  const pal = sem(nome).split(/[^a-z0-9]+/).filter(Boolean);
+  if (pal.filter(t => t.length >= 3 && !STOP_NOME.has(t)).some(t => raiz.includes(t) || t.includes(raiz))) return true;
+  const ini = pal.filter(t => !['de', 'da', 'do', 'dos', 'das', 'e', 'y', 'la', 'el', 'of'].includes(t)).map(t => t[0]).join('');
+  return ini.length >= 2 && (ini === raiz || raiz.startsWith(ini));
+};
 // De-para do skill de enriquecimento
 const SENIORITY_CARGO = { c_suite: 'ceo', vp: 'ceo', director: 'diretor', manager: 'gerente', senior: 'especialista', entry_level: 'analista', junior: 'analista', intern: 'estagiario', trainee: 'estagiario' };
 const ROLE_AREA = { marketing: 'marketing', sales: 'vendas', product: 'produto', design: 'produto', engineering: 'tecnologia', it: 'tecnologia', technology: 'tecnologia', customer_success: 'customer success',
@@ -99,13 +117,13 @@ export function computeAll(d) {
   const inc = (m, k) => m.set(k, (m.get(k) || 0) + 1);
   for (const c of emps) {
     const dom = normDom(g(c, 'companies', 'dominio'));
-    if (dom && !PUB.test(dom)) { inc(byDom, dom); inc(byRoot, rootKey(dom)); }
+    if (domEmpresaOk(dom)) { inc(byDom, dom); inc(byRoot, rootKey(dom)); }
     const nm = normName(g(c, 'companies', 'nome')); if (nm.length >= 3) inc(byName, nm);
   }
   const rootDoms = new Map(), nameDoms = new Map();
   for (const c of emps) {
     const dom = normDom(g(c, 'companies', 'dominio')), nm = normName(g(c, 'companies', 'nome'));
-    const okd = dom && !PUB.test(dom);
+    const okd = domEmpresaOk(dom);
     if (okd) { const r = rootKey(dom); if (!rootDoms.has(r)) rootDoms.set(r, new Set()); rootDoms.get(r).add(dom); }
     if (nm.length >= 3) { if (!nameDoms.has(nm)) nameDoms.set(nm, new Set()); nameDoms.get(nm).add(okd ? dom : ''); }
   }
@@ -117,11 +135,11 @@ export function computeAll(d) {
     for (const c of emps) { const nm = normName(g(c, 'companies', 'nome')); if (nm.length < 3) continue; if (!porNome.has(nm)) porNome.set(nm, []); porNome.get(nm).push(c); }
     for (const [nm, ms] of porNome) {
       if (ms.length < 2) continue;
-      const pk = (c) => (vazio(g(c, 'companies', 'pais')) ? '' : paisKey(g(c, 'companies', 'pais')));
+      const pk = (c) => (vazio(g(c, 'companies', 'pais')) ? paisDoDominio(normDom(g(c, 'companies', 'dominio'))) : paisKey(g(c, 'companies', 'pais')));
       const pc = new Map(); ms.forEach(c => { const k = pk(c); if (k) pc.set(k, (pc.get(k) || 0) + 1); });
       const paisDom = [...pc.entries()].sort((a, b) => b[1] - a[1])[0];
       const mesmoPais = ms.filter(c => !paisDom || !pk(c) || pk(c) === paisDom[0]);
-      const rk = (c) => { const d = normDom(g(c, 'companies', 'dominio')); return d && !PUB.test(d) ? rootKey(d) : ''; };
+      const rk = (c) => { const d = normDom(g(c, 'companies', 'dominio')); return domEmpresaOk(d) ? rootKey(d) : ''; };
       const rc = new Map(); mesmoPais.forEach(c => { const r = rk(c); if (r) rc.set(r, (rc.get(r) || 0) + 1); });
       const raizDom = [...rc.entries()].sort((a, b) => b[1] - a[1])[0];
       const certos = mesmoPais.filter(c => !rk(c) || !raizDom || rk(c) === raizDom[0]);
@@ -139,7 +157,7 @@ export function computeAll(d) {
     const li = g(c, 'companies', 'linkedin');
     const seg = sem(g(c, 'companies', 'segmento')), ind = String(g(c, 'companies', 'industry') || '').toUpperCase();
     const life = (g(c, 'companies', 'lifecycle') || '').toLowerCase();
-    const okDom = dom && !PUB.test(dom);
+    const okDom = domEmpresaOk(dom);
     const f = {
       porte_base: !vazio(porte) && func != null, cnpj_base: cn !== '' && ['', 'br'].includes(vazio(pais) ? '' : paisKey(pais)),
       pais_base: !vazio(pais) && !vazio(country), site_base: !!dom && !!site, seg_base: !!seg && seg !== 'outros' && !!IND_SEG[ind],
@@ -358,53 +376,99 @@ export function computeAll(d) {
   add('UNI-02', 'unicidade', 'Empresas com o mesmo domínio raiz', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_root), 'Mesmo domínio raiz com domínios diferentes, como vivara.com × vivara.com.br × loja.vivara.com (sufixos como com.br e ind.br são ignorados). Pode ser outra unidade ou site de outro país, por isso a ação é Revisar.', idxG('E', E, x => x.f.dup_root, x => x.grupos.raiz, x => x.grupos.raiz_n));
   add('UNI-03', 'unicidade', 'Empresas com o mesmo nome', 'Empresa', 'Oficial', sc(E, all, x => x.f.dup_nome), 'Mesmo nome (sem acento, espaço e pontuação) e mesmo país, sem domínio próprio diferente. Registros do mesmo nome em outro país ou com outro domínio raiz ficam de fora, porque podem ser filial ou outra empresa. A lista traz a ação recomendada em cada grupo.', idxG('E', E, x => x.f.dup_nome, x => x.grupos.nome, x => x.grupos.nome_n));
   add('UNI-04', 'unicidade', 'Contatos com o mesmo LinkedIn', 'Contato', 'Oficial', sc(C, all, x => x.f.dup_li), 'Mesmo perfil linkedin.com/in/… em mais de um contato. A lista mostra os contatos de cada perfil juntos.', idxG('C', C, x => x.f.dup_li, x => 'linkedin.com/in/' + x.grupos.li, x => x.grupos.li_n));
-  // ---------- Duplicidade: recomendação de ação por grupo (manter, mesclar, excluir ou revisar) ----------
+  // ---------- Duplicidade: recomendação de ação (manter, mesclar, excluir ou revisar) ----------
+  // Regras de precedência: UNI-01 (mesmo domínio) define o principal; UNI-03 (mesmo nome) se junta à mesma empresa real;
+  // UNI-02 (domínio raiz) é sempre revisão. Um registro cujo nome não corresponde ao domínio, ou cujos contatos são de
+  // outra empresa, nunca é principal e nunca recebe ação automática.
   {
     const leadsPorEmp = new Map(), leadsPorCt = new Map();
     for (const l of leadsF) { assoc(l, 'compan').forEach(i => leadsPorEmp.set(i, (leadsPorEmp.get(i) || 0) + 1)); assoc(l, 'contact').forEach(i => leadsPorCt.set(i, (leadsPorCt.get(i) || 0) + 1)); }
     const CAMPOS_E = [['nome', 'nome'], ['porte', 'porte'], ['segmento', 'segmento'], ['pais', 'país'], ['abrangencia', 'abrangência'], ['dominio', 'domínio'], ['cnpj', 'CNPJ']];
     const CAMPOS_C = [['nome', 'nome'], ['sobrenome', 'sobrenome'], ['email', 'e-mail'], ['cargo', 'hierarquia do cargo'], ['area_poc', 'área do POC'], ['linkedin', 'LinkedIn']];
+    // e-mails corporativos dos contatos associados a cada empresa (domínio raiz → quantidade)
+    const emailsPorEmp = new Map();
+    for (const c of cts) {
+      const em = String(g(c, 'contacts', 'email') || '').toLowerCase(); const d = em.includes('@') ? em.split('@')[1] : '';
+      if (!domEmpresaOk(d)) continue; const r = raizLimpa(d);
+      for (const e of (contactCompanies.get(c.id) || [])) { if (!emailsPorEmp.has(e)) emailsPorEmp.set(e, new Map()); const m = emailsPorEmp.get(e); m.set(r, (m.get(r) || 0) + 1); }
+    }
     const infoE = E.map((x, i) => {
-      const c = comp.get(x.id), r = TAB.E[i];
-      const o = { id: x.id, cli: String(g(c, 'companies', 'lifecycle') || '').toLowerCase() === 'customer', neg: num(g(c, 'companies', 'n_negocios')) || 0, ct: num(g(c, 'companies', 'n_contatos')) || 0, ld: leadsPorEmp.get(x.id) || 0 };
+      const c = comp.get(x.id), r = TAB.E[i], dom = normDom(g(c, 'companies', 'dominio'));
+      const o = { i, id: x.id, nome: g(c, 'companies', 'nome') || '', cli: String(g(c, 'companies', 'lifecycle') || '').toLowerCase() === 'customer', neg: num(g(c, 'companies', 'n_negocios')) || 0, ct: num(g(c, 'companies', 'n_contatos')) || 0, ld: leadsPorEmp.get(x.id) || 0 };
       o.cheios = CAMPOS_E.filter(([k]) => !vazio(r[k])).map(([k]) => k); o.campos = o.cheios.length;
-      r.n_negocios = o.neg; r.n_contatos = o.ct; r.n_leads = o.ld; r.campos_preenchidos = `${o.campos}/${CAMPOS_E.length}`;
+      o.raiz = domEmpresaOk(dom) ? raizLimpa(dom) : '';
+      o.nomeOk = nomeBateDominio(o.nome, o.raiz);
+      // contatos: de qual empresa são os e-mails?
+      const m = emailsPorEmp.get(x.id); let tot = 0, iguais = 0, outra = '', nOutra = 0;
+      if (m) for (const [k, n] of m) { tot += n; if (o.raiz && k === o.raiz) iguais += n; else if (n > nOutra) { outra = k; nOutra = n; } }
+      o.ctOutra = tot >= 2 && !!outra && nOutra / tot >= 0.5 && iguais / tot < 0.5;
+      r.contatos_emails = tot ? `${tot} com e-mail corporativo: ${iguais} @${o.raiz || '—'}${nOutra ? `, ${nOutra} @${outra}` : ''}` : '';
+      o.confiavel = o.nomeOk && !o.ctOutra;
+      o.alerta = !o.nomeOk ? `nome "${o.nome}" não corresponde ao domínio ${dom || '—'}` : (o.ctOutra ? `a maioria dos contatos tem e-mail @${outra}, de outra empresa` : '');
+      r.n_negocios = o.neg; r.n_contatos = o.ct; r.n_leads = o.ld; r.campos_preenchidos = `${o.campos} de ${CAMPOS_E.length}`;
       return o;
     });
     const infoC = C.map((x, i) => {
       const c = ctById.get(x.id), r = TAB.C[i];
-      const o = { id: x.id, valido: !!r.email && !x.f.pub_err && !x.f.bounce_err, neg: num(g(c, 'contacts', 'n_negocios')) || 0, ld: leadsPorCt.get(x.id) || 0, ct: 0, cli: false };
+      const o = { i, id: x.id, nome: r.nome || '', valido: !!r.email && !x.f.pub_err && !x.f.bounce_err, neg: num(g(c, 'contacts', 'n_negocios')) || 0, ld: leadsPorCt.get(x.id) || 0, ct: 0, cli: false, confiavel: true, alerta: '' };
       o.cheios = CAMPOS_C.filter(([k]) => !vazio(r[k])).map(([k]) => k); o.campos = o.cheios.length;
-      r.n_negocios = o.neg; r.n_leads = o.ld; r.campos_preenchidos = `${o.campos}/${CAMPOS_C.length}`;
+      r.n_negocios = o.neg; r.n_leads = o.ld; r.campos_preenchidos = `${o.campos} de ${CAMPOS_C.length}`;
       return o;
     });
+    const idNum = (a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+    const melhorE = (a, b) => (b.confiavel - a.confiavel) || (b.cli - a.cli) || (b.neg - a.neg) || ((b.ct + b.ld) - (a.ct + a.ld)) || (b.campos - a.campos) || idNum(a, b);
+    const melhorC = (a, b) => (b.valido - a.valido) || (b.neg - a.neg) || (b.ld - a.ld) || (b.campos - a.campos) || idNum(a, b);
+    const gruposDe = (idp) => { const ix = lists[idp], m = new Map(); if (!ix || !ix.grp) return m; for (const i of ix.e) { const k = ix.grp[i]; if (!m.has(k)) m.set(k, []); m.get(k).push(i); } return m; };
+
+    // Empresa real (entidade): grupos do UNI-01 e do UNI-03 que compartilham registros viram um só conjunto
+    const pai = E.map((_, i) => i);
+    const raiz = (i) => { while (pai[i] !== i) { pai[i] = pai[pai[i]]; i = pai[i]; } return i; };
+    const une = (a, b) => { a = raiz(a); b = raiz(b); if (a !== b) pai[b] = a; };
+    const g01 = gruposDe('UNI-01'), g03 = gruposDe('UNI-03');
+    for (const ms of [...g01.values(), ...g03.values()]) ms.slice(1).forEach(i => une(ms[0], i));
+    const em01 = new Set([].concat(...g01.values()));
+    const entidades = new Map();
+    for (const i of new Set([].concat(...g01.values(), ...g03.values()))) { const r = raiz(i); if (!entidades.has(r)) entidades.set(r, []); entidades.get(r).push(i); }
+    const principalDe = new Map(), semPrincipal = new Set();
+    for (const ms of entidades.values()) {
+      const info = ms.map(i => infoE[i]);
+      // 1º: principal confiável vindo do UNI-01; 2º: qualquer confiável; senão, entidade inteira vai para revisão
+      const c01 = info.filter(o => o.confiavel && em01.has(o.i)).sort(melhorE);
+      const conf = info.filter(o => o.confiavel).sort(melhorE);
+      const p = c01[0] || conf[0] || [...info].sort(melhorE)[0];
+      if (!c01.length && !conf.length) ms.forEach(i => semPrincipal.add(i));
+      ms.forEach(i => principalDe.set(i, p.i));
+    }
+
     const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
     const vinculos = (o, tipo) => [o.cli ? 'cliente' : '', o.neg ? plural(o.neg, 'negócio', 'negócios') : '', tipo === 'E' && o.ct ? plural(o.ct, 'contato', 'contatos') : '', o.ld ? plural(o.ld, 'lead', 'leads') : ''].filter(Boolean);
     const classificar = (idp, tipo, revisar) => {
       const ix = lists[idp]; if (!ix || !ix.grp) return;
       const info = tipo === 'E' ? infoE : infoC, CAMPOS = tipo === 'E' ? CAMPOS_E : CAMPOS_C, rotulo = Object.fromEntries(CAMPOS);
-      const melhor = (a, b) => tipo === 'E'
-        ? (b.cli - a.cli) || (b.neg - a.neg) || ((b.ct + b.ld) - (a.ct + a.ld)) || (b.campos - a.campos) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true })
-        : (b.valido - a.valido) || (b.neg - a.neg) || (b.ld - a.ld) || (b.campos - a.campos) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
-      const grupos = new Map();
-      for (const i of ix.e) { const k = ix.grp[i]; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(i); }
-      ix.acao = {}; ix.motivo = {}; ix.ordem = {};
+      const melhor = tipo === 'E' ? melhorE : melhorC;
+      const grupos = gruposDe(idp);
+      ix.acao = {}; ix.motivo = {}; ix.ordem = {}; ix.pid = {}; ix.pnome = {};
       const resumo = { grupos: grupos.size, 'Manter (principal)': 0, 'Mesclar no principal': 0, 'Excluir': 0, 'Revisar': 0 };
       for (const membros of grupos.values()) {
-        const ord = [...membros].sort((a, b) => melhor(info[a], info[b]));
-        const p = info[ord[0]]; const cobertos = new Set(p.cheios);
-        ord.forEach((i, pos) => {
-          const o = info[i]; ix.ordem[i] = pos;
-          if (pos === 0) {
+        // principal: o da empresa real (UNI-01/UNI-03) ou, no UNI-02 e nos contatos, o melhor do próprio grupo
+        const pIdx = (tipo === 'E' && !revisar && principalDe.has(membros[0])) ? principalDe.get(membros[0]) : [...membros].sort((a, b) => melhor(info[a], info[b]))[0];
+        const p = info[pIdx], cobertos = new Set(p.cheios), ordenados = [...membros].sort((a, b) => (a === pIdx ? -1 : b === pIdx ? 1 : melhor(info[a], info[b])));
+        const semConf = tipo === 'E' && !revisar && semPrincipal.has(pIdx);
+        ordenados.forEach((i, pos) => {
+          const o = info[i]; ix.ordem[i] = pos; ix.pid[i] = p.id; ix.pnome[i] = p.nome;
+          if (i === pIdx) {
             const v = vinculos(o, tipo);
-            ix.acao[i] = 'Manter (principal)';
-            ix.motivo[i] = `Principal: ${v.length ? v.join(', ') + ', ' : 'sem vínculos, '}${o.campos}/${CAMPOS.length} campos${tipo === 'C' ? (o.valido ? ', e-mail corporativo válido' : ', e-mail público ou inválido') : ''}`;
+            ix.acao[i] = semConf ? 'Revisar' : 'Manter (principal)';
+            ix.motivo[i] = semConf ? `Nenhum registro confiável para ser o principal: ${o.alerta}` : `Principal: ${v.length ? v.join(', ') + ', ' : 'sem vínculos, '}${o.campos} de ${CAMPOS.length} campos${tipo === 'C' ? (o.valido ? ', e-mail corporativo válido' : ', e-mail público ou inválido') : ''}`;
           } else {
             const v = vinculos(o, tipo), novos = o.cheios.filter(k => !cobertos.has(k)).map(k => rotulo[k]);
             const temAlgo = v.length > 0 || novos.length > 0;
             const det = [v.length ? v.join(', ') : '', novos.length ? `tem ${novos.join(', ')} que falta no principal` : ''].filter(Boolean).join('; ');
+            const destino = membros.includes(pIdx) ? 'no principal' : `no principal ${p.nome} (ID ${p.id})`;
             if (revisar) { ix.acao[i] = 'Revisar'; ix.motivo[i] = `Confirmar se é a mesma empresa. Se for: ${temAlgo ? 'mesclar no principal (' + det + ')' : 'excluir (sem vínculos e sem dado novo)'}`; }
-            else if (temAlgo) { ix.acao[i] = 'Mesclar no principal'; ix.motivo[i] = `Mesclar: ${det}`; o.cheios.forEach(k => cobertos.add(k)); }
+            else if (semConf) { ix.acao[i] = 'Revisar'; ix.motivo[i] = `Nenhum registro confiável para ser o principal. ${o.alerta ? 'Este: ' + o.alerta : ''}`.trim(); }
+            else if (!o.confiavel) { ix.acao[i] = 'Revisar'; ix.motivo[i] = `Pode ser marca, unidade ou domínio errado: ${o.alerta}`; }
+            else if (temAlgo) { ix.acao[i] = 'Mesclar no principal'; ix.motivo[i] = `Mesclar ${destino}: ${det}`; o.cheios.forEach(k => cobertos.add(k)); }
             else { ix.acao[i] = 'Excluir'; ix.motivo[i] = `Sem negócios, ${tipo === 'E' ? 'contatos, ' : ''}leads e nenhum dado que falte no principal (ou que já venha de outro registro mesclado)`; }
           }
           resumo[ix.acao[i]]++;
