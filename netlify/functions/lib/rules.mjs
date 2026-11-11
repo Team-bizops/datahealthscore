@@ -200,6 +200,14 @@ export function computeAll(d) {
   const dupNome = new Map(), dupLi = new Map();
   const ctKey = (c) => { const n = sem(g(c, 'contacts', 'nome')), s = sem(g(c, 'contacts', 'sobrenome')), e = sem(g(c, 'contacts', 'empresa')); return n && e ? `${n} ${s} · ${e}` : null; };
   for (const c of cts) { const k = ctKey(c); if (k) inc(dupNome, k); const li = liSlug(g(c, 'contacts', 'linkedin'), 'in'); if (li) inc(dupLi, li); }
+  // Empresa de referência por domínio raiz (a que tem mais contatos), para sugerir a associação correta
+  const empPorRaiz = new Map();
+  for (const c of emps) {
+    const d = normDom(g(c, 'companies', 'dominio')); if (!domEmpresaOk(d)) continue;
+    const r = raizLimpa(d), n = num(g(c, 'companies', 'n_contatos')) || 0, atual = empPorRaiz.get(r);
+    if (!atual || n > atual.n) empPorRaiz.set(r, { id: c.id, nome: g(c, 'companies', 'nome') || '', n, seg: sem(g(c, 'companies', 'segmento')) });
+  }
+  const AGENCIA = /agencia|publicidade|propaganda|marketing|comunicacao|midia/;
   const C = cts.map(c => {
     const email = (g(c, 'contacts', 'email') || '').toLowerCase(), dEmail = email.includes('@') ? email.split('@')[1] : '';
     const pub = PUB.test(dEmail);
@@ -219,7 +227,11 @@ export function computeAll(d) {
       dup_li: !!(slug && dupLi.get(slug) > 1), dup_nome: !!(k && dupNome.get(k) > 1),
       sem_empresa: empIds.length === 0
     };
-    f.dominio_div = f.dominio_base && !doms.some(dm => dEmail === dm || dEmail.endsWith('.' + dm) || dm.endsWith('.' + dEmail) || rootKey(dEmail) === rootKey(dm));
+    const dominioIgual = doms.some(dm => dEmail === dm || dEmail.endsWith('.' + dm) || dm.endsWith('.' + dEmail) || rootKey(dEmail) === rootKey(dm));
+    // Mesma empresa com outro domínio de e-mail (Itaú × itau-unibanco.com.br): não é erro de associação
+    const nomesEmpRaw = empIds.map(i => g(comp.get(i), 'companies', 'nome') || '');
+    f.dominio_alt = f.dominio_base && !dominioIgual && nomesEmpRaw.some(n => nomeBateDominio(n, raizLimpa(dEmail)));
+    f.dominio_div = f.dominio_base && !dominioIgual && !f.dominio_alt;
     f.empresa_div = f.empresa_base && !nomesEmp.some(n => n.includes(empTxt) || empTxt.includes(n));
     f.li_err = f.li_base && liSlug(li, 'in') !== liSlug(liAlt, 'in');
     // e-mail público e e-mail inválido (hard bounce)
@@ -239,6 +251,13 @@ export function computeAll(d) {
     const emp0 = empIds.length ? comp.get(empIds[0]) : null;
     const grupo_emp = emp0 ? `${g(emp0, 'companies', 'nome') || 'Empresa'} (ID ${emp0.id})` : '(sem empresa)';
     row.empresa_associada = grupo_emp;
+    if (f.dominio_div) {
+      const rz = raizLimpa(dEmail), alvo = empPorRaiz.get(rz), segEmp = sem(g(emp0, 'companies', 'segmento')) + ' ' + sem(g(emp0, 'companies', 'nome'));
+      if (AGENCIA.test(segEmp)) { row.correcao_sugerida = 'Revisar: agência com contato de cliente'; row.empresa_sugerida = alvo ? `${alvo.nome} (ID ${alvo.id})` : `@${dEmail}`; }
+      else if (alvo) { row.correcao_sugerida = 'Associar à empresa do e-mail'; row.empresa_sugerida = `${alvo.nome} (ID ${alvo.id})`; }
+      else { row.correcao_sugerida = 'Criar ou enriquecer a empresa do domínio do e-mail'; row.empresa_sugerida = `@${dEmail}`; }
+      row.correcao_sugerida += ' · se for grupo, holding ou nome antigo, manter e revisar';
+    } else if (f.dominio_alt) { row.correcao_sugerida = 'Domínio alternativo da mesma empresa: incluir @' + dEmail + ' como domínio da empresa'; row.empresa_sugerida = ''; }
     return { id: c.id, uso, origem: row.origem, f, row, grupo_emp, grupos: { li: slug || '', li_n: slug ? dupLi.get(slug) : 0, nome: k || '', nome_n: k ? dupNome.get(k) : 0 } };
   });
 
@@ -355,7 +374,9 @@ export function computeAll(d) {
   add('ACU-07', 'acuracia', 'Contato com e-mail público em vez de corporativo', 'Contato', 'Oficial', sc(C, x => x.f.pub_base, x => x.f.pub_err), 'E-mail de provedor público (gmail, hotmail, outlook, yahoo, icloud, live, bol, uol, terra). Negócios são fechados com POCs de e-mail corporativo.', listC(x => x.f.pub_base, x => x.f.pub_err));
   add('ACU-08', 'acuracia', 'E-mail do contato inválido (hard bounce)', 'Contato', 'Oficial', sc(C, x => x.f.bounce_base, x => x.f.bounce_err), 'O HubSpot tentou entregar e o e-mail voltou como inexistente ou inválido (hard bounce). Normalmente é um contato que saiu da empresa.', listC(x => x.f.bounce_base, x => x.f.bounce_err));
   // Consistência entre objetos
-  add('CON-01', 'consistencia', 'E-mail corporativo de domínio diferente da empresa', 'Contato', 'Oficial', sc(C, x => x.f.dominio_base, x => x.f.dominio_div), 'Domínio do e-mail do contato × domínio das empresas associadas.', listC(x => x.f.dominio_base, x => x.f.dominio_div));
+  const ctErrPorEmp = new Map();
+  for (const x of C) if (x.f.dominio_div) ctErrPorEmp.set(x.grupo_emp, (ctErrPorEmp.get(x.grupo_emp) || 0) + 1);
+  add('CON-01', 'consistencia', 'Contato associado à empresa errada (e-mail de outra empresa)', 'Contato', 'Oficial', sc(C, x => x.f.dominio_base, x => x.f.dominio_div), 'Domínio do e-mail do contato × domínio e nome das empresas associadas. Quando o nome da empresa corresponde ao domínio do e-mail (Itaú × itau-unibanco.com.br), é domínio alternativo da mesma empresa e não conta como erro. A lista agrupa por empresa associada e sugere a correção: associar à empresa do e-mail, criar a empresa ou revisar (agência, grupo ou nome antigo).', idxG('C', C, x => x.f.dominio_div, x => x.grupo_emp, x => ctErrPorEmp.get(x.grupo_emp) || 0));
   add('CON-02', 'consistencia', 'Campo "Empresa" diferente da empresa associada', 'Contato', 'Oficial', sc(C, x => x.f.empresa_base, x => x.f.empresa_div), 'Texto de company × nome das empresas associadas (sem acento, espaço e pontuação; um contido no outro passa). A lista agrupa os contatos por empresa associada, da que tem mais casos para a que tem menos.', idxG('C', C, x => x.f.empresa_div, x => x.grupo_emp, x => ctDivPorEmpresa.get(x.grupo_emp) || 0));
   add('CON-03', 'consistencia', 'Telefone do lead diferente do contato', 'Lead', 'Oficial', scL(x => x.f.tel_base, x => x.f.tel_div), 'Últimos 8 dígitos do telefone do lead × telefone ou celular do contato.', listL(x => x.f.tel_base, x => x.f.tel_div));
   add('CON-04', 'consistencia', 'Empresa dos leads diferente da empresa dos contatos', 'Empresa', 'Oficial', sc(E, x => x.f.lead_base, x => x.f.lead_err), 'A empresa está associada a pelo menos um lead cujo contato não está associado a ela. A lista mostra, em cada empresa, os leads e contatos envolvidos.', listE(x => x.f.lead_base, x => x.f.lead_err));
@@ -636,6 +657,23 @@ export function computeAll(d) {
     d.final = d.nota_dimensoes; // 100% dimensões; saúde dos registros fica só como diagnóstico
     d.status = statusDe(d.final);
   });
+  // ---------- Contatos na empresa errada (resumo para o card da Consistência) ----------
+  const ctErrada = (() => {
+    const err = C.filter(x => x.f.dominio_div), alt = C.filter(x => x.f.dominio_alt);
+    const porEmp = new Map();
+    for (const x of err) {
+      const d = (x.row.email.split('@')[1] || ''), k = x.grupo_emp;
+      const o = porEmp.get(k) || { empresa: k, contatos: 0, em_uso: 0, dominios: new Map(), sugestao: x.row.correcao_sugerida, empresa_sugerida: x.row.empresa_sugerida };
+      o.contatos++; if (x.uso) o.em_uso++; o.dominios.set(d, (o.dominios.get(d) || 0) + 1); porEmp.set(k, o);
+    }
+    const top = [...porEmp.values()].sort((a, b) => b.contatos - a.contatos).slice(0, 10).map(o => {
+      const [dom, n] = [...o.dominios.entries()].sort((a, b) => b[1] - a[1])[0];
+      const ex = err.find(x => x.grupo_emp === o.empresa && x.row.email.endsWith('@' + dom));
+      return { empresa: o.empresa, contatos: o.contatos, em_uso: o.em_uso, dominio_email: dom, qtd_dominio: n, sugestao: ex ? ex.row.correcao_sugerida.split(' · ')[0] : '', empresa_sugerida: ex ? ex.row.empresa_sugerida : '' };
+    });
+    const porTipo = {}; err.forEach(x => { const t = (x.row.correcao_sugerida || '').split(' · ')[0]; porTipo[t] = (porTipo[t] || 0) + 1; });
+    return { total: err.length, em_uso: err.filter(x => x.uso).length, empresas: porEmp.size, alternativos: alt.length, por_tipo: porTipo, top };
+  })();
   // ---------- Monitoramento (fora da nota): empresas sem atividade há mais de 2 anos ----------
   const LIMITE_ATIV = Date.now() - 730 * 24 * 3600 * 1000;
   const dataDe = (v) => { if (vazio(v)) return null; const n = Number(v); const t = isNaN(n) ? Date.parse(v) : n; return isNaN(t) ? null : t; };
@@ -664,5 +702,5 @@ export function computeAll(d) {
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
   const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
-  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, monitor, acoes_duplicidade: acoesDup, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
+  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, monitor, acoes_duplicidade: acoesDup, contatos_empresa_errada: ctErrada, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
 }
