@@ -189,7 +189,7 @@ export function computeAll(d) {
       porte: porte || '', funcionarios: func == null ? '' : String(func), segmento: g(c, 'companies', 'segmento') || '', pais: pais || '', country: country || '',
       abrangencia: g(c, 'companies', 'abrangencia') || '', cnpj: g(c, 'companies', 'cnpj') || '', linkedin: li || '', origem: g(c, 'companies', 'origem') || '(vazio)',
       em_uso: uso ? 'sim' : 'não', link_hubspot: link('0-2', c.id) };
-    row.industria_breeze = ind;
+    row.industria_breeze = ind; row.telefone = g(c, 'companies', 'telefone') || '';
     return { id: c.id, uso, origem: row.origem, f, row, grupos };
   });
 
@@ -417,7 +417,7 @@ export function computeAll(d) {
     }
     const infoE = E.map((x, i) => {
       const c = comp.get(x.id), r = TAB.E[i], dom = normDom(g(c, 'companies', 'dominio'));
-      const o = { i, id: x.id, dom, nome: g(c, 'companies', 'nome') || '', cli: String(g(c, 'companies', 'lifecycle') || '').toLowerCase() === 'customer', neg: num(g(c, 'companies', 'n_negocios')) || 0, ct: num(g(c, 'companies', 'n_contatos')) || 0, ld: leadsPorEmp.get(x.id) || 0 };
+      const o = { i, id: x.id, dom, uso: x.uso, nome: g(c, 'companies', 'nome') || '', cli: String(g(c, 'companies', 'lifecycle') || '').toLowerCase() === 'customer', neg: num(g(c, 'companies', 'n_negocios')) || 0, ct: num(g(c, 'companies', 'n_contatos')) || 0, ld: leadsPorEmp.get(x.id) || 0 };
       o.cheios = CAMPOS_E.filter(([k]) => !vazio(r[k])).map(([k]) => k); o.campos = o.cheios.length;
       o.raiz = domEmpresaOk(dom) ? raizLimpa(dom) : '';
       o.nomeOk = nomeBateDominio(o.nome, o.raiz);
@@ -465,33 +465,64 @@ export function computeAll(d) {
       if (!c01.length && !conf.length) ms.forEach(i => semPrincipal.add(i));
       ms.forEach(i => principalDe.set(i, p.i));
     }
-    // Ação por empresa real, calculada uma vez: o registro recebe a mesma ação no UNI-01 e no UNI-03
+    // Ação por empresa real, calculada uma vez: o registro recebe a mesma ação no UNI-01 e no UNI-03.
+    // Antes de excluir, compara 9 campos com o principal: copia o que falta e decide divergências por evidência.
+    const CMP = [['porte', 'Porte'], ['funcionarios', 'Nº funcionários'], ['segmento', 'Segmento'], ['pais', 'País'], ['abrangencia', 'Abrangência'], ['cnpj', 'CNPJ'], ['linkedin', 'LinkedIn'], ['website', 'Site'], ['telefone', 'Telefone']];
+    const norm = (k, v) => { const t = String(v ?? '').trim(); if (!t) return ''; if (k === 'website') return normDom(t); if (k === 'telefone' || k === 'cnpj') return t.replace(/\D/g, ''); if (k === 'funcionarios') return String(Number(t) || t); if (k === 'linkedin') return liSlug(t, 'company') || sem(t); if (k === 'pais') return paisKey(t); return sem(t); };
+    const interno = (k) => P.companies[k] || k;
+    const slugCombina = (slug, o) => { const sl = String(slug || '').replace(/[^a-z0-9]/g, ''); if (!sl) return false; return (o.raiz && (sl.includes(o.raiz) || o.raiz.includes(sl))) || nomeBateDominio(o.nome, sl); };
+    const comparar = (o, p, rp) => {
+      const ro = TAB.E[o.i], copiar = [], diverg = [], vals = {};
+      for (const [k, rot] of CMP) {
+        const vo = ro[k], vp = rp[k], no = norm(k, vo), np = norm(k, vp);
+        if (!no || no === np) continue;
+        const item = `${rot} = ${vo} (${interno(k)})`; vals[rot] = [k, vo];
+        if (!np) { copiar.push(item); continue; }
+        // divergência: decide por evidência
+        if (k === 'segmento') { if (np === 'outros' && no !== 'outros') copiar.push(item + ' · substitui "Outros"'); else if (no !== 'outros') diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
+        if (k === 'pais') { const ev = paisDoDominio(p.dom) || paisDoDominio(o.dom); if (ev && ev === np) continue; if (ev && ev === no) { copiar.push(item + ` · o domínio indica ${ev.toUpperCase()}`); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
+        if (k === 'linkedin') { const sp = liSlug(vp, 'company'), so = liSlug(vo, 'company'); const cp = slugCombina(sp, p), co = slugCombina(so, p); if (cp && !co) continue; if (co && !cp) { copiar.push(item + ' · o endereço combina com a empresa'); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
+        if (k === 'website' || k === 'telefone') continue; // fica o do principal
+        diverg.push(`${rot}: principal "${vp}" × este "${vo}"`);
+      }
+      return { copiar, diverg, vals };
+    };
     const acaoEnt = new Map();
     for (const ms of entidades.values()) {
-      const p = infoE[principalDe.get(ms[0])], semConf = semPrincipal.has(p.i), cobertos = new Set(p.cheios);
+      const p = infoE[principalDe.get(ms[0])], semConf = semPrincipal.has(p.i);
       const outros = ms.filter(i => i !== p.i).map(i => infoE[i]).sort(melhorE);
       const vp = vinculosE(p);
-      acaoEnt.set(p.i, semConf ? ['Revisar', `Nenhum registro confiável para ser o principal: ${p.alerta}`] : ['Manter (principal)', `Principal: ${vp.length ? vp.join(', ') + ', ' : 'sem vínculos, '}${p.campos} de ${CAMPOS_E.length} campos`]);
+      acaoEnt.set(p.i, semConf ? { acao: 'Revisar', motivo: `Nenhum registro confiável para ser o principal: ${p.alerta}` } : { acao: 'Manter (principal)', motivo: `Principal: ${vp.length ? vp.join(', ') + ', ' : 'sem vínculos, '}${p.campos} de ${CAMPOS_E.length} campos` });
+      const ef = { ...TAB.E[p.i] }; // valores do principal já considerando o que foi copiado de outros registros
       for (const o of outros) {
-        const v = vinculosE(o), novos = o.cheios.filter(k => !cobertos.has(k)).map(k => ROT_E[k]);
-        const temAlgo = v.length > 0 || novos.length > 0;
-        const det = [v.length ? v.join(', ') : '', novos.length ? `tem ${novos.join(', ')} que falta no principal` : ''].filter(Boolean).join('; ');
+        const v = vinculosE(o), { copiar, diverg, vals } = comparar(o, p, ef);
+        const novos = copiar;
         const destino = o.dom && o.dom === p.dom ? 'no principal' : `no principal ${p.nome} (ID ${p.id})`;
-        if (semConf) acaoEnt.set(o.i, ['Revisar', `Nenhum registro confiável para ser o principal. ${o.alerta ? 'Este: ' + o.alerta : ''}`.trim()]);
-        else if (!o.confiavel) acaoEnt.set(o.i, ['Revisar', `Pode ser marca, unidade ou domínio errado: ${o.alerta}`]);
-        else if (temAlgo) { acaoEnt.set(o.i, ['Mesclar no principal', `Mesclar ${destino}: ${det}`]); o.cheios.forEach(k => cobertos.add(k)); }
-        else acaoEnt.set(o.i, ['Excluir', `Sem negócios, contatos, leads e nenhum dado que falte no principal (ou que já venha de outro registro mesclado)${o.dom === p.dom ? '' : ` · principal: ${p.nome} (ID ${p.id})`}`]);
+        const r = { campos_a_copiar: novos.join(' | '), divergencias: diverg.join(' | ') };
+        if (semConf) Object.assign(r, { acao: 'Revisar', motivo: `Nenhum registro confiável para ser o principal. ${o.alerta ? 'Este: ' + o.alerta : ''}`.trim() });
+        else if (!o.confiavel) Object.assign(r, { acao: 'Revisar', motivo: `Pode ser marca, unidade ou domínio errado: ${o.alerta}` });
+        else if (diverg.length) Object.assign(r, { acao: 'Revisar', motivo: `${v.length ? 'Mesclar ' + destino : 'Excluir'} depois de decidir: ${diverg.join('; ')}` });
+        else if (v.length) Object.assign(r, { acao: 'Mesclar no principal', motivo: `Mesclar ${destino}: ${v.join(', ')}${novos.length ? '; copiar ' + novos.map(c => c.split(' = ')[0]).join(', ') : ''}` });
+        else if (novos.length) Object.assign(r, { acao: 'Copiar campos e excluir', motivo: `Sem vínculos. Copiar para o principal: ${novos.map(c => c.split(' = ')[0]).join(', ')}; depois excluir` });
+        else Object.assign(r, { acao: 'Excluir', motivo: `Sem negócios, contatos, leads e nenhum dado que falte no principal (ou que já venha de outro registro)${o.dom === p.dom ? '' : ` · principal: ${p.nome} (ID ${p.id})`}` });
+        if (['Mesclar no principal', 'Copiar campos e excluir'].includes(r.acao)) novos.forEach(c => { const [k, vo] = vals[c.split(' = ')[0]]; ef[k] = vo; });
+        // faixa de risco
+        const outroDominio = !!o.dom && o.dom !== p.dom;
+        if (r.acao === 'Excluir' || r.acao === 'Copiar campos e excluir') r.faixa = outroDominio || o.uso ? 'Mescla assistida' : 'Auto excluir';
+        else if (r.acao === 'Mesclar no principal') r.faixa = (!outroDominio && !o.cli && o.neg === 0 && o.ct <= 3 && o.ld <= 3) ? 'Auto mesclar' : 'Mescla assistida';
+        else r.faixa = 'Revisão';
+        acaoEnt.set(o.i, r);
       }
+      acaoEnt.get(p.i).faixa = semConf ? 'Revisão' : 'Principal';
     }
-
     const vinculos = (o, tipo) => [o.cli ? 'cliente' : '', o.neg ? plural(o.neg, 'negócio', 'negócios') : '', tipo === 'E' && o.ct ? plural(o.ct, 'contato', 'contatos') : '', o.ld ? plural(o.ld, 'lead', 'leads') : ''].filter(Boolean);
     const classificar = (idp, tipo, revisar) => {
       const ix = lists[idp]; if (!ix || !ix.grp) return;
       const info = tipo === 'E' ? infoE : infoC, CAMPOS = tipo === 'E' ? CAMPOS_E : CAMPOS_C, rotulo = Object.fromEntries(CAMPOS);
       const melhor = tipo === 'E' ? melhorE : melhorC;
       const grupos = gruposDe(idp);
-      ix.acao = {}; ix.motivo = {}; ix.ordem = {}; ix.pid = {}; ix.pnome = {};
-      const resumo = { grupos: grupos.size, 'Manter (principal)': 0, 'Mesclar no principal': 0, 'Excluir': 0, 'Revisar': 0 };
+      ix.acao = {}; ix.motivo = {}; ix.ordem = {}; ix.pid = {}; ix.pnome = {}; ix.faixa = {}; ix.copiar = {}; ix.diverg = {};
+      const resumo = { grupos: grupos.size, 'Manter (principal)': 0, 'Mesclar no principal': 0, 'Copiar campos e excluir': 0, 'Excluir': 0, 'Revisar': 0 };
       for (const membros of grupos.values()) {
         // principal: o da empresa real (UNI-01/UNI-03) ou, no UNI-02 e nos contatos, o melhor do próprio grupo
         const pIdx = (tipo === 'E' && !revisar && principalDe.has(membros[0])) ? principalDe.get(membros[0]) : [...membros].sort((a, b) => melhor(info[a], info[b]))[0];
@@ -499,7 +530,7 @@ export function computeAll(d) {
         const semConf = tipo === 'E' && !revisar && semPrincipal.has(pIdx);
         ordenados.forEach((i, pos) => {
           const o = info[i]; ix.ordem[i] = pos; ix.pid[i] = p.id; ix.pnome[i] = p.nome;
-          if (tipo === 'E' && !revisar && acaoEnt.has(i)) { [ix.acao[i], ix.motivo[i]] = acaoEnt.get(i); resumo[ix.acao[i]]++; return; }
+          if (tipo === 'E' && !revisar && acaoEnt.has(i)) { const r = acaoEnt.get(i); ix.acao[i] = r.acao; ix.motivo[i] = r.motivo; ix.faixa[i] = r.faixa; ix.copiar[i] = r.campos_a_copiar || ''; ix.diverg[i] = r.divergencias || ''; resumo[r.acao] = (resumo[r.acao] || 0) + 1; return; }
           if (i === pIdx) {
             const v = vinculos(o, tipo);
             ix.acao[i] = semConf ? 'Revisar' : 'Manter (principal)';
@@ -515,9 +546,11 @@ export function computeAll(d) {
             else if (temAlgo) { ix.acao[i] = 'Mesclar no principal'; ix.motivo[i] = `Mesclar ${destino}: ${det}`; o.cheios.forEach(k => cobertos.add(k)); }
             else { ix.acao[i] = 'Excluir'; ix.motivo[i] = `Sem negócios, ${tipo === 'E' ? 'contatos, ' : ''}leads e nenhum dado que falte no principal (ou que já venha de outro registro mesclado)`; }
           }
+          if (!ix.faixa[i]) ix.faixa[i] = ix.acao[i] === 'Manter (principal)' ? 'Principal' : revisar || ix.acao[i] === 'Revisar' ? 'Revisão' : ix.acao[i] === 'Excluir' && !(tipo === 'C' && C[i] && C[i].uso) ? 'Auto excluir' : 'Mescla assistida';
           resumo[ix.acao[i]]++;
         });
       }
+      resumo.faixas = {}; Object.values(ix.faixa).forEach(f => { resumo.faixas[f] = (resumo.faixas[f] || 0) + 1; });
       ix.resumo = resumo; acoesDup[idp] = resumo;
     };
     classificar('UNI-01', 'E', false);
