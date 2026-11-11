@@ -7,9 +7,11 @@
   .dhs .cterr .sub{font-size:.8rem;color:var(--text-muted);margin-bottom:10px}
   .dhs .cterr .nums{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:10px;font-size:.78rem;color:var(--text-muted)}
   .dhs .cterr .nums b{display:block;font-size:1.2rem;color:var(--text)}
-  .dhs .cterr table{width:100%;border-collapse:collapse;font-size:.8rem;table-layout:fixed}
-  .dhs .cterr th{text-align:left;color:var(--text-muted);font-weight:700;padding:5px 6px;border-bottom:1px solid var(--border)}
-  .dhs .cterr td{padding:5px 6px;border-bottom:1px solid var(--border);word-break:break-word}
+  .dhs .cterr .grade{display:grid;grid-template-columns:2.2fr .7fr .6fr 1.6fr 2fr 1.8fr;font-size:.8rem}
+  .dhs .cterr .grade > div{padding:6px 8px;border-bottom:1px solid var(--border);word-break:break-word}
+  .dhs .cterr .grade .h{color:var(--text-muted);font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em}
+  .dhs .cterr .grade .n{text-align:right}
+  .dhs .cterr details summary{cursor:pointer;color:var(--accent);font-weight:700;font-size:.82rem;margin:4px 0 8px}
   .dhs .cterr .dica{font-size:.76rem;color:var(--text-muted);margin-top:8px}`;
   document.head.appendChild(css);
 
@@ -22,13 +24,12 @@
       <div class="sub">Contatos cujo e-mail corporativo é de outra empresa. Não inclui a mesma empresa com outro domínio de e-mail (ex.: Itaú × itau-unibanco.com.br), que aparece à parte.</div>
       <div class="nums"><div><b>${nint(d.total)}</b>contatos na empresa errada</div><div><b>${nint(d.em_uso)}</b>em uso</div><div><b>${nint(d.empresas)}</b>empresas afetadas</div><div><b>${nint(d.alternativos)}</b>domínio alternativo (não é erro)</div></div>
       <div class="sub">${tipos}</div>
-      <table><thead><tr><th style="width:24%">Empresa associada</th><th style="width:9%">Contatos</th><th style="width:7%">Em uso</th><th style="width:18%">E-mail dos contatos</th><th style="width:22%">Correção sugerida</th><th style="width:20%">Empresa sugerida</th></tr></thead><tbody></tbody></table>
+      <details open><summary>10 empresas com mais casos</summary><div class="grade"><div class="h">Empresa associada</div><div class="h n">Contatos</div><div class="h n">Em uso</div><div class="h">E-mail dos contatos</div><div class="h">Correção sugerida</div><div class="h">Empresa sugerida</div></div></details>
       <div class="dica">A lista completa do CON-01 (na tabela abaixo) agrupa os contatos por empresa e traz a correção sugerida para cada um.</div>`;
-    const tb = box.querySelector('tbody');
+    const grade = box.querySelector('.grade');
     (d.top || []).forEach(o => {
-      const tr = document.createElement('tr');
-      [o.empresa, nint(o.contatos), nint(o.em_uso), `@${o.dominio_email} (${nint(o.qtd_dominio)})`, o.sugestao, o.empresa_sugerida].forEach(v => { const td = document.createElement('td'); td.textContent = v ?? ''; tr.appendChild(td); });
-      tb.appendChild(tr);
+      [[String(o.empresa || '').replace(/ \(ID \d+\)$/, ''), ''], [nint(o.contatos), 'n'], [nint(o.em_uso), 'n'], [`@${o.dominio_email} (${nint(o.qtd_dominio)})`, ''], [o.sugestao, ''], [String(o.empresa_sugerida || '').replace(/ \(ID \d+\)$/, ''), '']]
+        .forEach(([v, c]) => { const el = document.createElement('div'); if (c) el.className = c; el.textContent = v ?? ''; grade.appendChild(el); });
     });
   };
 
