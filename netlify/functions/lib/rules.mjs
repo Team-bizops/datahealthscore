@@ -487,6 +487,8 @@ export function computeAll(d) {
           const nP = Number(rp.funcionarios) || Number(ro.funcionarios) || null, nO = Number(ro.funcionarios) || Number(rp.funcionarios) || null;
           const okP = k === 'porte' ? (nP != null && porteCoerente(vp, nP)) : (!!(rp.porte || ro.porte) && porteCoerente(rp.porte || ro.porte, Number(vp)));
           const okO = k === 'porte' ? (nO != null && porteCoerente(vo, nO)) : (!!(rp.porte || ro.porte) && porteCoerente(rp.porte || ro.porte, Number(vo)));
+          const faixa = (n) => { n = Number(n); return !n ? '' : n < 10 ? 'micro' : n < 50 ? 'pequena' : n < 100 ? 'media' : n < 1000 ? 'grande' : 'enterprise'; };
+          if (k === 'funcionarios' && faixa(vp) && faixa(vp) === faixa(vo)) continue; // mesma faixa de porte: fica o do principal
           if (okP && !okO) continue;
           if (okO && !okP) { copiar.push(item + ' · coerente com ' + (k === 'porte' ? `${nO} funcionários` : `o porte ${rp.porte || ro.porte}`)); continue; }
           diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue;
