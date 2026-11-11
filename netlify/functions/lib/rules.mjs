@@ -481,7 +481,7 @@ export function computeAll(d) {
         // divergência: decide por evidência
         if (k === 'segmento') { if (np === 'outros' && no !== 'outros') copiar.push(item + ' · substitui "Outros"'); else if (no !== 'outros') diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
         if (k === 'pais') { const ev = paisDoDominio(p.dom) || paisDoDominio(o.dom); if (ev && ev === np) continue; if (ev && ev === no) { copiar.push(item + ` · o domínio indica ${ev.toUpperCase()}`); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
-        if (k === 'linkedin') { const sp = liSlug(vp, 'company'), so = liSlug(vo, 'company'); const cp = slugCombina(sp, p), co = slugCombina(so, p); if (cp && !co) continue; if (co && !cp) { copiar.push(item + ' · o endereço combina com a empresa'); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
+        if (k === 'linkedin') { const sp = liSlug(vp, 'company'), so = liSlug(vo, 'company'); const cp = slugCombina(sp, p), co = slugCombina(so, p); if (cp) continue; if (co) { copiar.push(item + ' · o endereço combina com a empresa'); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
         if (k === 'website' || k === 'telefone') continue; // fica o do principal
         diverg.push(`${rot}: principal "${vp}" × este "${vo}"`);
       }
