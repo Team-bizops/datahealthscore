@@ -482,6 +482,15 @@ export function computeAll(d) {
         if (k === 'segmento') { if (np === 'outros' && no !== 'outros') copiar.push(item + ' · substitui "Outros"'); else if (no !== 'outros') diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
         if (k === 'pais') { const ev = paisDoDominio(p.dom) || paisDoDominio(o.dom); if (ev && ev === np) continue; if (ev && ev === no) { copiar.push(item + ` · o domínio indica ${ev.toUpperCase()}`); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
         if (k === 'linkedin') { const sp = liSlug(vp, 'company'), so = liSlug(vo, 'company'); const cp = slugCombina(sp, p), co = slugCombina(so, p); if (cp) continue; if (co) { copiar.push(item + ' · o endereço combina com a empresa'); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
+        // porte × nº de funcionários: vence o valor coerente com a faixa oficial (mesma regra do ACU-01)
+        if (k === 'porte' || k === 'funcionarios') {
+          const nP = Number(rp.funcionarios) || Number(ro.funcionarios) || null, nO = Number(ro.funcionarios) || Number(rp.funcionarios) || null;
+          const okP = k === 'porte' ? (nP != null && porteCoerente(vp, nP)) : (!!(rp.porte || ro.porte) && porteCoerente(rp.porte || ro.porte, Number(vp)));
+          const okO = k === 'porte' ? (nO != null && porteCoerente(vo, nO)) : (!!(rp.porte || ro.porte) && porteCoerente(rp.porte || ro.porte, Number(vo)));
+          if (okP && !okO) continue;
+          if (okO && !okP) { copiar.push(item + ' · coerente com ' + (k === 'porte' ? `${nO} funcionários` : `o porte ${rp.porte || ro.porte}`)); continue; }
+          diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue;
+        }
         if (k === 'website' || k === 'telefone') continue; // fica o do principal
         diverg.push(`${rot}: principal "${vp}" × este "${vo}"`);
       }
