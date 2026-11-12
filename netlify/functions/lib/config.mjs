@@ -28,7 +28,7 @@ export const PROPS = {
     nome: ['name'], dominio: ['domain'], porte: ['colaboradores'], funcionarios: ['numberofemployees'],
     abrangencia: ['abrangencia_de_atuacao'], pais: ['pais', 'country'], segmento: ['segmento'], cnpj: ['cnpj'],
     lifecycle: ['lifecyclestage'], origem: ['hs_object_source'], n_contatos: ['num_associated_contacts'], n_negocios: ['num_associated_deals'],
-    country: ['country'], website: ['website'], linkedin: ['linkedin_company_page'], linkedin_alt: ['hs_linkedin_handle'], industry: ['industry'], ultima_atividade: ['notes_last_updated'], telefone: ['phone']
+    country: ['country'], website: ['website'], linkedin: ['linkedin_company_page'], linkedin_alt: ['hs_linkedin_handle'], industry: ['industry'], ultima_atividade: ['notes_last_updated'], telefone: ['phone'], fonte_detalhe: ['hs_object_source_detail_1'], criado_em: ['createdate']
   },
   contacts: {
     nome: ['firstname'], sobrenome: ['lastname'], email: ['email'], empresa: ['company'], cargo: ['cargo', 'jobtitle'],

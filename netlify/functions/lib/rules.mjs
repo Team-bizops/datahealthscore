@@ -189,7 +189,7 @@ export function computeAll(d) {
       porte: porte || '', funcionarios: func == null ? '' : String(func), segmento: g(c, 'companies', 'segmento') || '', pais: pais || '', country: country || '',
       abrangencia: g(c, 'companies', 'abrangencia') || '', cnpj: g(c, 'companies', 'cnpj') || '', linkedin: li || '', origem: g(c, 'companies', 'origem') || '(vazio)',
       em_uso: uso ? 'sim' : 'não', link_hubspot: link('0-2', c.id) };
-    row.industria_breeze = ind; row.telefone = g(c, 'companies', 'telefone') || '';
+    row.industria_breeze = ind; row.telefone = g(c, 'companies', 'telefone') || ''; row.fonte_detalhe = g(c, 'companies', 'fonte_detalhe') || ''; row.data_criacao = String(g(c, 'companies', 'criado_em') || '').slice(0, 10); row.lifecycle = g(c, 'companies', 'lifecycle') || '';
     return { id: c.id, uso, origem: row.origem, f, row, grupos };
   });
 
@@ -472,11 +472,11 @@ export function computeAll(d) {
     const interno = (k) => P.companies[k] || k;
     const slugCombina = (slug, o) => { const sl = String(slug || '').replace(/[^a-z0-9]/g, ''); if (!sl) return false; return (o.raiz && (sl.includes(o.raiz) || o.raiz.includes(sl))) || nomeBateDominio(o.nome, sl); };
     const comparar = (o, p, rp) => {
-      const ro = TAB.E[o.i], copiar = [], diverg = [], vals = {};
+      const ro = TAB.E[o.i], copiar = [], diverg = [], vals = {}, est = {};
       for (const [k, rot] of CMP) {
         const vo = ro[k], vp = rp[k], no = norm(k, vo), np = norm(k, vp);
         if (!no || no === np) continue;
-        const item = `${rot} = ${vo} (${interno(k)})`; vals[rot] = [k, vo];
+        const item = `${rot} = ${vo} (${interno(k)})`; vals[rot] = [k, vo]; est[rot] = { campo: rot, propriedade: interno(k), valor: vo, valor_principal: vp || '' };
         if (!np) { copiar.push(item); continue; }
         // divergência: decide por evidência
         if (k === 'segmento') { if (np === 'outros' && no !== 'outros') copiar.push(item + ' · substitui "Outros"'); else if (no !== 'outros') diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
@@ -496,7 +496,7 @@ export function computeAll(d) {
         if (k === 'website' || k === 'telefone') continue; // fica o do principal
         diverg.push(`${rot}: principal "${vp}" × este "${vo}"`);
       }
-      return { copiar, diverg, vals };
+      return { copiar, diverg, vals, est };
     };
     const acaoEnt = new Map();
     for (const ms of entidades.values()) {
@@ -506,10 +506,10 @@ export function computeAll(d) {
       acaoEnt.set(p.i, semConf ? { acao: 'Revisar', motivo: `Nenhum registro confiável para ser o principal: ${p.alerta}` } : { acao: 'Manter (principal)', motivo: `Principal: ${vp.length ? vp.join(', ') + ', ' : 'sem vínculos, '}${p.campos} de ${CAMPOS_E.length} campos` });
       const ef = { ...TAB.E[p.i] }; // valores do principal já considerando o que foi copiado de outros registros
       for (const o of outros) {
-        const v = vinculosE(o), { copiar, diverg, vals } = comparar(o, p, ef);
+        const v = vinculosE(o), { copiar, diverg, vals, est } = comparar(o, p, ef);
         const novos = copiar;
         const destino = o.dom && o.dom === p.dom ? 'no principal' : `no principal ${p.nome} (ID ${p.id})`;
-        const r = { campos_a_copiar: novos.join(' | '), divergencias: diverg.join(' | ') };
+        const r = { campos_a_copiar: novos.join(' | '), divergencias: diverg.join(' | '), copiar_json: novos.map(c => { const rot = c.split(' = ')[0], e = est[rot], ex = c.split(' · ')[1]; return { ...e, regra: ex || 'principal vazio' }; }) };
         if (semConf) Object.assign(r, { acao: 'Revisar', motivo: `Nenhum registro confiável para ser o principal. ${o.alerta ? 'Este: ' + o.alerta : ''}`.trim() });
         else if (!o.confiavel) Object.assign(r, { acao: 'Revisar', motivo: `Pode ser marca, unidade ou domínio errado: ${o.alerta}` });
         else if (diverg.length) Object.assign(r, { acao: 'Revisar', motivo: `${v.length ? 'Mesclar ' + destino : 'Excluir'} depois de decidir: ${diverg.join('; ')}` });
@@ -532,7 +532,7 @@ export function computeAll(d) {
       const info = tipo === 'E' ? infoE : infoC, CAMPOS = tipo === 'E' ? CAMPOS_E : CAMPOS_C, rotulo = Object.fromEntries(CAMPOS);
       const melhor = tipo === 'E' ? melhorE : melhorC;
       const grupos = gruposDe(idp);
-      ix.acao = {}; ix.motivo = {}; ix.ordem = {}; ix.pid = {}; ix.pnome = {}; ix.faixa = {}; ix.copiar = {}; ix.diverg = {};
+      ix.acao = {}; ix.motivo = {}; ix.ordem = {}; ix.pid = {}; ix.pnome = {}; ix.faixa = {}; ix.copiar = {}; ix.diverg = {}; ix.copiarJ = {};
       const resumo = { grupos: grupos.size, 'Manter (principal)': 0, 'Mesclar no principal': 0, 'Copiar campos e excluir': 0, 'Excluir': 0, 'Revisar': 0 };
       for (const membros of grupos.values()) {
         // principal: o da empresa real (UNI-01/UNI-03) ou, no UNI-02 e nos contatos, o melhor do próprio grupo
@@ -541,7 +541,7 @@ export function computeAll(d) {
         const semConf = tipo === 'E' && !revisar && semPrincipal.has(pIdx);
         ordenados.forEach((i, pos) => {
           const o = info[i]; ix.ordem[i] = pos; ix.pid[i] = p.id; ix.pnome[i] = p.nome;
-          if (tipo === 'E' && !revisar && acaoEnt.has(i)) { const r = acaoEnt.get(i); ix.acao[i] = r.acao; ix.motivo[i] = r.motivo; ix.faixa[i] = r.faixa; ix.copiar[i] = r.campos_a_copiar || ''; ix.diverg[i] = r.divergencias || ''; resumo[r.acao] = (resumo[r.acao] || 0) + 1; return; }
+          if (tipo === 'E' && !revisar && acaoEnt.has(i)) { const r = acaoEnt.get(i); ix.acao[i] = r.acao; ix.motivo[i] = r.motivo; ix.faixa[i] = r.faixa; ix.copiar[i] = r.campos_a_copiar || ''; ix.diverg[i] = r.divergencias || ''; if (r.copiar_json && r.copiar_json.length) ix.copiarJ[i] = r.copiar_json; resumo[r.acao] = (resumo[r.acao] || 0) + 1; return; }
           if (i === pIdx) {
             const v = vinculos(o, tipo);
             ix.acao[i] = semConf ? 'Revisar' : 'Manter (principal)';
