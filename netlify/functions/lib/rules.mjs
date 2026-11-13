@@ -470,6 +470,15 @@ export function computeAll(d) {
     const CMP = [['porte', 'Porte'], ['funcionarios', 'Nº funcionários'], ['segmento', 'Segmento'], ['pais', 'País'], ['abrangencia', 'Abrangência'], ['cnpj', 'CNPJ'], ['linkedin', 'LinkedIn'], ['website', 'Site'], ['telefone', 'Telefone']];
     const norm = (k, v) => { const t = String(v ?? '').trim(); if (!t) return ''; if (k === 'website') return normDom(t); if (k === 'telefone' || k === 'cnpj') return t.replace(/\D/g, ''); if (k === 'funcionarios') return String(Number(t) || t); if (k === 'linkedin') return liSlug(t, 'company') || sem(t); if (k === 'pais') return paisKey(t); return sem(t); };
     const interno = (k) => P.companies[k] || k;
+    const telefoneValido = (v) => {
+      const bruto = String(v || '').trim(); let d = bruto.replace(/\D/g, '');
+      if (bruto.startsWith('+')) { if (!d.startsWith('55')) return true; d = d.slice(2); } // fora do Brasil: não valida
+      d = d.replace(/^0+(?!800)/, '');
+      if (d.length < 10 || d.length > 11) return false;
+      const ult = d.slice(-8);
+      if (/(\d)\1{5,}/.test(ult) || ult === '12345678' || ult === '87654321') return false; // 8888-8888, 0000-0000, 1234-5678
+      return true;
+    };
     const slugCombina = (slug, o) => { const sl = String(slug || '').replace(/[^a-z0-9]/g, ''); if (!sl) return false; return (o.raiz && (sl.includes(o.raiz) || o.raiz.includes(sl))) || nomeBateDominio(o.nome, sl); };
     const comparar = (o, p, rp) => {
       const ro = TAB.E[o.i], copiar = [], diverg = [], vals = {}, est = {};
@@ -485,6 +494,8 @@ export function computeAll(d) {
           if (!np || np === 'outros') { copiar.push(item + (np ? ' · substitui "Outros"' : '') + (aceitos ? ' · confere com o Breeze' : '')); continue; }
           diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue;
         }
+        // telefone: só copia número plausível (10 ou 11 dígitos depois do +55; sem sequências repetidas como 8888-8888)
+        if (k === 'telefone' && !telefoneValido(vo)) continue;
         if (!np) { copiar.push(item); continue; }
         // divergência: decide por evidência
         if (k === 'pais') { const ev = paisDoDominio(p.dom) || paisDoDominio(o.dom); if (ev && ev === np) continue; if (ev && ev === no) { copiar.push(item + ` · o domínio indica ${ev.toUpperCase()}`); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
