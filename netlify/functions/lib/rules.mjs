@@ -477,9 +477,16 @@ export function computeAll(d) {
         const vo = ro[k], vp = rp[k], no = norm(k, vo), np = norm(k, vp);
         if (!no || no === np) continue;
         const item = `${rot} = ${vo} (${interno(k)})`; vals[rot] = [k, vo]; est[rot] = { campo: rot, propriedade: interno(k), valor: vo, valor_principal: vp || '' };
+        // segmento: só entra se bater com a indústria do Breeze (mesma regra do ACU-06); sem Breeze, vale o valor do registro
+        if (k === 'segmento') {
+          if (no === 'outros') continue;
+          const ind = TAB.E[p.i].industria_breeze || TAB.E[o.i].industria_breeze, aceitos = ind && IND_SEG[ind];
+          if (aceitos && !aceitos.includes(no)) { diverg.push(`${rot}: "${vo}" não bate com a indústria do Breeze (${ind})${np ? ` · principal "${vp}"` : ''}`); continue; }
+          if (!np || np === 'outros') { copiar.push(item + (np ? ' · substitui "Outros"' : '') + (aceitos ? ' · confere com o Breeze' : '')); continue; }
+          diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue;
+        }
         if (!np) { copiar.push(item); continue; }
         // divergência: decide por evidência
-        if (k === 'segmento') { if (np === 'outros' && no !== 'outros') copiar.push(item + ' · substitui "Outros"'); else if (no !== 'outros') diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
         if (k === 'pais') { const ev = paisDoDominio(p.dom) || paisDoDominio(o.dom); if (ev && ev === np) continue; if (ev && ev === no) { copiar.push(item + ` · o domínio indica ${ev.toUpperCase()}`); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
         if (k === 'linkedin') { const sp = liSlug(vp, 'company'), so = liSlug(vo, 'company'); const cp = slugCombina(sp, p), co = slugCombina(so, p); if (cp) continue; if (co) { copiar.push(item + ' · o endereço combina com a empresa'); continue; } diverg.push(`${rot}: principal "${vp}" × este "${vo}"`); continue; }
         // porte × nº de funcionários: vence o valor coerente com a faixa oficial (mesma regra do ACU-01)
