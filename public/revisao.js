@@ -141,12 +141,11 @@
         : `Ao aprovar: ${p.nome} (ID ${p.id}) fica como principal; ${dentro.length - 1} registro(s) voltam para mesclar ou excluir na faixa "Aprovado na revisão"${muda.length ? `; o principal recebe ${muda.join(', ')} antes da mescla/exclusão` : ''}${st.fora.size ? `; ${st.fora.size} sai(em) da duplicidade e será(ão) renomeado(s)` : ''}. A automação roda nos horários agendados ou pelo formulário.`;
     };
     const nomeIn = el('input', { type: 'text', placeholder: 'Seu nome', value: ls.get('dhs-rev-nome'), 'aria-label': 'Quem está revisando' });
-    const codIn = el('input', { type: 'password', placeholder: 'Código de revisão', value: ls.get('dhs-rev-cod'), 'aria-label': 'Código de revisão' });
     const msg = el('span', { class: 'msg' });
     const enviar = async (metodo, url, corpo) => {
-      ls.set('dhs-rev-nome', nomeIn.value.trim()); ls.set('dhs-rev-cod', codIn.value.trim());
+      ls.set('dhs-rev-nome', nomeIn.value.trim());
       msg.textContent = 'Gravando…';
-      const r = await fetch(url, { method: metodo, headers: { 'content-type': 'application/json', 'x-dhs-revisao': codIn.value.trim() }, body: corpo ? JSON.stringify(corpo) : undefined });
+      const r = await fetch(url, { method: metodo, headers: { 'content-type': 'application/json' }, body: corpo ? JSON.stringify(corpo) : undefined });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { msg.textContent = j.erro || 'Não foi possível gravar.'; return false; }
       await carregarDec(); marcarBotoes();
@@ -166,7 +165,7 @@
       const r = await fetch(`/api/revisao?idp=${encodeURIComponent(idp)}&grupo=${encodeURIComponent(grupo)}`); desenhar(box, await r.json(), fechar, idp, grupo);
     };
     const medir = async () => { msg.textContent = 'Iniciando medição…'; const r = await fetch('/api/run', { method: 'POST' }); const j = await r.json().catch(() => ({})); msg.textContent = j.msg || (r.ok ? 'Medição iniciada (leva alguns minutos).' : 'Não foi possível iniciar.'); };
-    box.append(res, el('div', { class: 'pe' }, nomeIn, codIn,
+    box.append(res, el('div', { class: 'pe' }, nomeIn,
       el('button', { class: 'btn primary', text: so02 ? 'Gravar' : (dec ? 'Atualizar aprovação' : 'Aprovar grupo'), onclick: aprovar }),
       dec || d.separadas.length ? el('button', { class: 'btn', text: 'Desfazer revisão', onclick: desfazer }) : null,
       dec || d.separadas.length ? el('button', { class: 'btn', text: 'Aplicar agora (nova medição)', onclick: medir }) : null, msg));
