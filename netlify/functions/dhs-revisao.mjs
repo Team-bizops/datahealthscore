@@ -3,7 +3,7 @@
 // GET    /api/revisao?idp=UNI-01&grupo=<grupo> → empresa real do grupo (todos os registros do UNI-01/UNI-03) + decisão atual
 // POST   /api/revisao  { por, tipo: 'grupo', principal_id, registros: [ids], valores: {campo: valor}, separar: [{ id, novo_nome }] }
 // DELETE /api/revisao?id=<chave>
-// Gravar e desfazer exigem o código de revisão no cabeçalho x-dhs-revisao (DHS_REVISAO_CODIGO, ou DHS_AUTOMACAO_TOKEN se não houver).
+// Gravar e desfazer pedem só o nome de quem revisou (o painel é de uso interno da BizOps).
 import { store } from './lib/run.mjs';
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
@@ -55,9 +55,6 @@ export default async (req) => {
   }
 
   // gravar e desfazer
-  const codigo = process.env.DHS_REVISAO_CODIGO || process.env.DHS_AUTOMACAO_TOKEN;
-  if (!codigo || req.headers.get('x-dhs-revisao') !== codigo) return json({ erro: 'Código de revisão inválido.' }, 401);
-
   if (req.method === 'DELETE') {
     const chave = q.get('id');
     const rev = await carregar(st);
