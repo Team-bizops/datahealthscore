@@ -20,6 +20,10 @@ export default async (req) => {
   const st = store();
   const resumo = await st.get('latest', { type: 'json' });
   const tab = (await st.get('tab/E', { type: 'json' })) || [];
+  // decisões da revisão no painel: só vale "Aprovado na revisão" se a decisão ainda existir
+  const rev = (await st.get('revisoes', { type: 'json' })) || { decisoes: {} };
+  const aprovados = new Map();
+  Object.values(rev.decisoes || {}).filter(d => d.tipo === 'grupo').forEach(d => (d.registros || []).forEach(id => aprovados.set(String(id), d)));
   const reg = new Map(); // índice da empresa → registro consolidado
   for (const idp of regras) {
     const ix = await st.get(`idx/${idp}`, { type: 'json' });
@@ -31,6 +35,7 @@ export default async (req) => {
       reg.set(i, {
         id: String(r.record_id), nome: r.nome || '', dominio: r.dominio || '', regras: [idp], grupo: ix.grp[i],
         acao: ix.acao[i], faixa_risco: ix.faixa ? ix.faixa[i] : '', motivo: ix.motivo[i],
+        revisado_por: aprovados.has(String(r.record_id)) ? aprovados.get(String(r.record_id)).por : '',
         principal_id: String(ix.pid[i]), principal_nome: ix.pnome[i],
         campos_a_copiar: (ix.copiarJ && ix.copiarJ[i]) || [],
         divergencias: ix.diverg ? ix.diverg[i] || '' : '',
@@ -46,6 +51,7 @@ export default async (req) => {
     if (!ents.has(r.principal_id)) ents.set(r.principal_id, { entidade_id: r.principal_id, principal: null, registros: [] });
     const e = ents.get(r.principal_id);
     if (r.id === r.principal_id) { e.principal = r; continue; }
+    if (r.faixa_risco === 'Aprovado na revisão' && !r.revisado_por) { r.faixa_risco = 'Revisão'; r.acao = 'Revisar'; r.motivo = 'Aprovação desfeita no painel'; }
     if (faixas.length && !faixas.includes(r.faixa_risco)) continue;
     if (acoes.length && !acoes.includes(r.acao)) continue;
     if (origens.length && !origens.includes(r.origem)) continue;
@@ -59,13 +65,18 @@ export default async (req) => {
     .map(e => ({ ...e, registros: e.registros.sort((a, b) => (ordem[a.acao] || 9) - (ordem[b.acao] || 9)) }))
     .sort((a, b) => b.registros.length - a.registros.length || a.entidade_id.localeCompare(b.entidade_id));
   const pagina = todas.slice(cursor, cursor + limite);
+  // "não é a mesma empresa": renomear no HubSpot para não voltar a parecer duplicidade
+  const nomeAtual = new Map(tab.map(r => [String(r.record_id), r.nome || '']));
+  const renomear = Object.values(rev.decisoes || {}).filter(d => d.tipo === 'separar' && nomeAtual.has(String(d.id)) && nomeAtual.get(String(d.id)) !== d.novo_nome)
+    .map(d => ({ id: String(d.id), nome_atual: nomeAtual.get(String(d.id)), novo_nome: d.novo_nome, propriedade: 'name', revisado_por: d.por, revisado_em: d.em }));
   return json({
     medicao: resumo ? resumo.gerado_em : null, versao_regras: resumo ? resumo.metodologia : null,
     filtros: { regras, faixas, acoes, origens, fonte, criado_de: de, criado_ate: ate },
     total_entidades: todas.length, total_registros: todas.reduce((s, e) => s + e.registros.length, 0),
     cursor, proximo_cursor: cursor + limite < todas.length ? cursor + limite : null,
     ordem_de_execucao: ['1. copiar campos para o principal', '2. mesclar no principal', '3. excluir (vai para a lixeira)'],
-    entidades: pagina
+    entidades: pagina,
+    renomear
   });
 };
 
