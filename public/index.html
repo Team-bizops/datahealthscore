@@ -611,7 +611,7 @@ window.DHS_DIMS = [
     const rows = filtradas(), cols = LST.rows[0] ? Object.keys(LST.rows[0]) : [];
     cols.forEach(c => { const th = document.createElement('th'); th.textContent = HEAD[c] || c; head.appendChild(th); });
     let gAnt = null;
-    rows.slice(0, 500).forEach(rw => { if (rw.grupo_duplicidade !== undefined && rw.qtd_no_grupo && rw.grupo_duplicidade !== gAnt) { gAnt = rw.grupo_duplicidade; const gh = document.createElement('tr'); gh.className = 'grp-h'; const gtd = document.createElement('td'); gtd.colSpan = cols.length; gtd.textContent = `Grupo: ${rw.grupo_duplicidade} · ${rw.qtd_no_grupo} registros`; gh.appendChild(gtd); body.appendChild(gh); }
+    rows.slice(0, 500).forEach(rw => { if (rw.grupo_duplicidade !== undefined && rw.qtd_no_grupo && rw.grupo_duplicidade !== gAnt) { gAnt = rw.grupo_duplicidade; const gh = document.createElement('tr'); gh.className = 'grp-h'; gh.dataset.grupo = rw.grupo_duplicidade; const gtd = document.createElement('td'); gtd.colSpan = cols.length; gtd.textContent = `Grupo: ${rw.grupo_duplicidade} · ${rw.qtd_no_grupo} registros`; gh.appendChild(gtd); body.appendChild(gh); }
       const tr = document.createElement('tr');
       cols.forEach(c => { const td = document.createElement('td');
         if (c === 'link_hubspot' && rw[c]) { const a = document.createElement('a'); a.href = rw[c]; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir'; td.appendChild(a); } else td.textContent = rw[c] == null ? '' : rw[c];
@@ -720,4 +720,5 @@ window.DHS_DIMS = [
 <script src="/contatos.js"></script>
 <script src="/monitor.js"></script>
 <script src="/mapa.js"></script>
+<script src="/revisao.js"></script>
 </body></html>
