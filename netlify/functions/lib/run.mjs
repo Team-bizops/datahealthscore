@@ -26,7 +26,9 @@ export async function runMedicao() {
       hs.listAll('deals', props('deals'))
     ]);
     console.log(`HubSpot lido em ${Math.round((Date.now() - t0) / 1000)}s: ${companies.length} empresas, ${contacts.length} contatos, ${leads.length} leads`);
-    const { summary, lists, tabelas } = computeAll({ companies, contacts, leads, deals, P });
+    const revisoes = (await store().get('revisoes', { type: 'json' })) || { decisoes: {} };
+    const { summary, lists, tabelas } = computeAll({ companies, contacts, leads, deals, P, revisoes });
+    summary.revisoes = { aplicadas_em: new Date().toISOString(), total: Object.keys(revisoes.decisoes || {}).length };
     const mp = computeMapa({ companies, contacts, leads, P });
     summary.mapa = mp.mapa;
     const fim = new Date();

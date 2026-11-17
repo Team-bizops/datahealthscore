@@ -103,6 +103,10 @@ const bate = (oficial, esperado) => sem(oficial).startsWith(esperado) || sem(ofi
 
 export function computeAll(d) {
   const { companies, contacts, leads, P } = d;
+  // Decisões da revisão feita no painel: grupos aprovados e registros que não são a mesma empresa
+  const DEC = Object.values((d.revisoes && d.revisoes.decisoes) || {});
+  const separadas = new Set(DEC.filter(x => x.tipo === 'separar').map(x => String(x.id)));
+  const grupoDec = new Map(); DEC.filter(x => x.tipo === 'grupo').forEach(x => (x.registros || []).forEach(id => grupoDec.set(String(id), x)));
   const g = (rec, obj, k) => { const name = P[obj][k]; return name ? rec.p[name] : undefined; };
 
   // ---------- leads (SDRs e Executivos) ----------
@@ -117,13 +121,14 @@ export function computeAll(d) {
   const comp = new Map(emps.map(c => [c.id, c]));
   const byDom = new Map(), byRoot = new Map(), byName = new Map();
   const inc = (m, k) => m.set(k, (m.get(k) || 0) + 1);
-  for (const c of emps) {
+  const empsDup = emps.filter(c => !separadas.has(c.id)); // "não é a mesma empresa" sai da duplicidade
+  for (const c of empsDup) {
     const dom = normDom(g(c, 'companies', 'dominio'));
     if (domEmpresaOk(dom)) { inc(byDom, dom); if (raizElegivel(g(c, 'companies', 'nome'), dom)) inc(byRoot, rootKey(dom)); }
     const nm = normName(g(c, 'companies', 'nome')); if (nm.length >= 3) inc(byName, nm);
   }
   const rootDoms = new Map(), nameDoms = new Map();
-  for (const c of emps) {
+  for (const c of empsDup) {
     const dom = normDom(g(c, 'companies', 'dominio')), nm = normName(g(c, 'companies', 'nome'));
     const okd = domEmpresaOk(dom);
     if (okd && raizElegivel(g(c, 'companies', 'nome'), dom)) { const r = rootKey(dom); if (!rootDoms.has(r)) rootDoms.set(r, new Set()); rootDoms.get(r).add(dom); }
@@ -134,7 +139,7 @@ export function computeAll(d) {
   const nomeCerto = new Map(); // id → [grupo, tamanho]
   {
     const porNome = new Map();
-    for (const c of emps) { const nm = normName(g(c, 'companies', 'nome')); if (nm.length < 3) continue; if (!porNome.has(nm)) porNome.set(nm, []); porNome.get(nm).push(c); }
+    for (const c of empsDup) { const nm = normName(g(c, 'companies', 'nome')); if (nm.length < 3) continue; if (!porNome.has(nm)) porNome.set(nm, []); porNome.get(nm).push(c); }
     for (const [nm, ms] of porNome) {
       if (ms.length < 2) continue;
       const pk = (c) => (vazio(g(c, 'companies', 'pais')) ? paisDoDominio(normDom(g(c, 'companies', 'dominio'))) : paisKey(g(c, 'companies', 'pais')));
@@ -165,10 +170,10 @@ export function computeAll(d) {
       pais_base: !vazio(pais) && !vazio(country), site_base: !!dom && !!site, seg_base: !!seg && seg !== 'outros' && !!IND_SEG[ind],
       sem_func: func == null, sem_abrang: vazio(g(c, 'companies', 'abrangencia')), sem_pais: vazio(pais), sem_segmento: vazio(g(c, 'companies', 'segmento')),
       sem_porte: vazio(porte), sem_dominio: vazio(dom),
-      dup_dom: okDom && byDom.get(dom) > 1,
+      dup_dom: okDom && !separadas.has(c.id) && byDom.get(dom) > 1,
       sem_contato: (num(g(c, 'companies', 'n_contatos')) || 0) === 0
     };
-    f.dup_root = okDom && raizElegivel(g(c, 'companies', 'nome'), dom) && byRoot.get(rootKey(dom)) > 1 && rootDoms.get(rootKey(dom)).size > 1;
+    f.dup_root = okDom && !separadas.has(c.id) && raizElegivel(g(c, 'companies', 'nome'), dom) && byRoot.get(rootKey(dom)) > 1 && rootDoms.get(rootKey(dom)).size > 1;
     f.dup_nome = nomeCerto.has(c.id);
     f.porte_err = f.porte_base && !porteCoerente(porte, func);
     f.cnpj_err = f.cnpj_base && !cnpjValido(cn);
@@ -455,9 +460,17 @@ export function computeAll(d) {
     const em01 = new Set([].concat(...g01.values()));
     const entidades = new Map();
     for (const i of new Set([].concat(...g01.values(), ...g03.values()))) { const r = raiz(i); if (!entidades.has(r)) entidades.set(r, []); entidades.get(r).push(i); }
-    const principalDe = new Map(), semPrincipal = new Set();
+    const principalDe = new Map(), semPrincipal = new Set(), decDe = new Map();
     for (const ms of entidades.values()) {
       const info = ms.map(i => infoE[i]);
+      // grupo aprovado na revisão: os registros aprovados são a mesma empresa e o principal escolhido vale
+      const dec = ms.map(i => grupoDec.get(String(E[i].id))).find(Boolean);
+      if (dec) {
+        const apr = new Set((dec.registros || []).map(String));
+        info.forEach(o => { decDe.set(o.i, dec); if (apr.has(String(o.id))) { o.confiavel = true; o.aprovado = true; } });
+        const esc = info.find(o => String(o.id) === String(dec.principal_id));
+        if (esc) { ms.forEach(i => principalDe.set(i, esc.i)); continue; }
+      }
       // 1º: principal confiável vindo do UNI-01; 2º: qualquer confiável; senão, entidade inteira vai para revisão
       const c01 = info.filter(o => o.confiavel && em01.has(o.i)).sort(melhorE);
       const conf = info.filter(o => o.confiavel).sort(melhorE);
@@ -480,9 +493,10 @@ export function computeAll(d) {
       return true;
     };
     const slugCombina = (slug, o) => { const sl = String(slug || '').replace(/[^a-z0-9]/g, ''); if (!sl) return false; return (o.raiz && (sl.includes(o.raiz) || o.raiz.includes(sl))) || nomeBateDominio(o.nome, sl); };
-    const comparar = (o, p, rp) => {
+    const comparar = (o, p, rp, fixos) => {
       const ro = TAB.E[o.i], copiar = [], diverg = [], vals = {}, est = {};
       for (const [k, rot] of CMP) {
+        if (fixos && fixos.has(k)) continue; // valor decidido na revisão
         const vo = ro[k], vp = rp[k], no = norm(k, vo), np = norm(k, vp);
         if (!no || no === np) continue;
         const item = `${rot} = ${vo} (${interno(k)})`; vals[rot] = [k, vo]; est[rot] = { campo: rot, propriedade: interno(k), valor: vo, valor_principal: vp || '' };
@@ -523,8 +537,19 @@ export function computeAll(d) {
       const vp = vinculosE(p);
       acaoEnt.set(p.i, semConf ? { acao: 'Revisar', motivo: `Nenhum registro confiável para ser o principal: ${p.alerta}` } : { acao: 'Manter (principal)', motivo: `Principal: ${vp.length ? vp.join(', ') + ', ' : 'sem vínculos, '}${p.campos} de ${CAMPOS_E.length} campos` });
       const ef = { ...TAB.E[p.i] }; // valores do principal já considerando o que foi copiado de outros registros
+      // valores escolhidos na revisão: o registro que tem o valor (ou o primeiro da fila) leva a cópia para o principal
+      const dec = decDe.get(p.i), fixos = new Set(), extra = new Map(), rotK = Object.fromEntries(CMP);
+      const assin = dec ? ` · aprovado na revisão por ${dec.por || 'BizOps'} em ${String(dec.em || '').slice(0, 10)}` : '';
+      if (dec) for (const [k, V] of Object.entries(dec.valores || {})) {
+        if (!rotK[k] || V == null || V === '') continue; fixos.add(k);
+        if (norm(k, ef[k]) === norm(k, V) || !outros.length) continue;
+        const dono = outros.find(o => o.aprovado && norm(k, TAB.E[o.i][k]) === norm(k, V)) || outros.find(o => o.aprovado) || outros[0];
+        if (!extra.has(dono.i)) extra.set(dono.i, []); extra.get(dono.i).push([k, V]);
+      }
+      if (assin && acaoEnt.get(p.i).acao === 'Manter (principal)') acaoEnt.get(p.i).motivo += assin;
       for (const o of outros) {
-        const v = vinculosE(o), { copiar, diverg, vals, est } = comparar(o, p, ef);
+        const v = vinculosE(o), { copiar, diverg, vals, est } = comparar(o, p, ef, fixos);
+        for (const [k, V] of extra.get(o.i) || []) { const rot = rotK[k]; copiar.push(`${rot} = ${V} (${interno(k)}) · aprovado na revisão`); vals[rot] = [k, V]; est[rot] = { campo: rot, propriedade: interno(k), valor: V, valor_principal: ef[k] || '' }; }
         const novos = copiar;
         const destino = o.dom && o.dom === p.dom ? 'no principal' : `no principal ${p.nome} (ID ${p.id})`;
         const r = { campos_a_copiar: novos.join(' | '), divergencias: diverg.join(' | '), copiar_json: novos.map(c => { const rot = c.split(' = ')[0], e = est[rot], ex = c.split(' · ')[1]; return { ...e, regra: ex || 'principal vazio' }; }) };
@@ -540,6 +565,7 @@ export function computeAll(d) {
         if (r.acao === 'Excluir' || r.acao === 'Copiar campos e excluir') r.faixa = outroDominio || o.uso ? 'Mescla assistida' : 'Auto excluir';
         else if (r.acao === 'Mesclar no principal') r.faixa = (!outroDominio && !o.cli && o.neg === 0 && o.ct <= 3 && o.ld <= 3) ? 'Auto mesclar' : 'Mescla assistida';
         else r.faixa = 'Revisão';
+        if (o.aprovado && r.acao !== 'Revisar') { r.faixa = 'Aprovado na revisão'; r.motivo += assin; }
         acaoEnt.set(o.i, r);
       }
       acaoEnt.get(p.i).faixa = semConf ? 'Revisão' : 'Principal';
