@@ -19,3 +19,7 @@ Painel do Data Health Score lido direto da API do HubSpot.
 ## Deploy
 Conectado ao Netlify (projeto bizops-datahealthscore): cada commit na branch main publica o painel.
 Depois do primeiro deploy, abra o painel e clique em "Atualizar agora".
+
+## Revisão de duplicidade no painel
+
+Nas listas UNI-01, UNI-02 e UNI-03, o botão "Revisar grupo" grava a decisão da BizOps em /api/revisao (código em DHS_REVISAO_CODIGO). Na medição seguinte, os registros aprovados entram na faixa "Aprovado na revisão" e a automação do n8n executa; os marcados como outra empresa saem da duplicidade e são renomeados.
