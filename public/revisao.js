@@ -193,6 +193,6 @@
     });
   };
   let agendado = false;
-  new MutationObserver(() => { if (agendado) return; agendado = true; requestAnimationFrame(() => { agendado = false; if (document.querySelector('.dhs .lista tr.grp-h:not(.rv-ok)')) { document.querySelectorAll('.dhs .lista tr.grp-h').forEach(g => g.classList.add('rv-ok')); if (DEC) marcarBotoes(); else carregarDec().then(marcarBotoes); } }); })
+  new MutationObserver(() => { if (agendado) return; agendado = true; setTimeout(() => { agendado = false; if (document.querySelector('.dhs .lista tr.grp-h:not(.rv-ok)')) { document.querySelectorAll('.dhs .lista tr.grp-h').forEach(g => g.classList.add('rv-ok')); if (DEC) marcarBotoes(); else carregarDec().then(marcarBotoes); } }, 60); })
     .observe(document.body, { childList: true, subtree: true });
 })();
