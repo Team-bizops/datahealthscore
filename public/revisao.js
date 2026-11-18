@@ -159,6 +159,9 @@
       if ([...st.fora.values()].some(v => !String(v).trim())) { msg.textContent = 'Preencha o nome novo de quem não é a mesma empresa.'; return; }
       const dentro = regs.filter(r => !st.fora.has(r.id)).map(r => r.id);
       const valores = {}; if (!so02) Object.entries(st.valores).forEach(([k, v]) => { if (v) valores[k] = v; });
+      // troca de um valor que o principal já tem: pede confirmação (evita escolha sem querer na lista)
+      const p0 = P(), sobrescreve = so02 ? [] : Object.entries(valores).filter(([k, v]) => p0[k] && norm(k, v) !== norm(k, p0[k])).map(([k, v]) => `• ${ROT[k]}: ${p0[k]} → ${v}`);
+      if (sobrescreve.length && !window.confirm(`O principal ${p0.nome} vai ter estes campos trocados:\n\n${sobrescreve.join('\n')}\n\nConfirma?`)) { msg.textContent = 'Aprovação cancelada.'; return; }
       const ok = await enviar('POST', '/api/revisao', { por: nomeIn.value.trim(), idp, grupo, principal_id: so02 ? '' : st.principal, registros: so02 ? [] : dentro, valores, separar: regs.filter(r => st.fora.has(r.id)).map(r => ({ id: r.id, nome_atual: r.nome, novo_nome: st.fora.get(r.id) })) });
       if (ok) { const r = await fetch(`/api/revisao?idp=${encodeURIComponent(idp)}&grupo=${encodeURIComponent(grupo)}`); const d2 = await r.json(); desenhar(box, d2, fechar, idp, grupo); }
     };
