@@ -36,7 +36,8 @@ export default async (req) => {
         divergencias: ixx.diverg ? ixx.diverg[i] || '' : '', campos_a_copiar: ixx.copiar ? ixx.copiar[i] || '' : '',
         ...Object.fromEntries(CAMPOS.map(k => [k, r[k] || ''])), industria_breeze: r.industria_breeze || '',
         n_negocios: r.n_negocios || 0, n_contatos: r.n_contatos || 0, n_leads: r.n_leads || 0, em_uso: r.em_uso === 'sim', lifecycle: r.lifecycle || '',
-        contatos_emails: r.contatos_emails || '', link: r.link_hubspot || ''
+        contatos_emails: r.contatos_emails || '', link: r.link_hubspot || '',
+        sugestao: ixx.sug && ixx.sug[i] ? { decisao: ixx.sug[i][0], confianca: ixx.sug[i][1], padrao: ixx.sug[i][2], nome: ixx.sug[i][3] } : null
       });
     };
     if (idp === 'UNI-02') doGrupo.forEach(i => pegar(ix, i, idp));
@@ -69,9 +70,10 @@ export default async (req) => {
     let b; try { b = await req.json(); } catch (e) { return json({ erro: 'JSON inválido.' }, 400); }
     const por = String(b.por || '').trim().slice(0, 60);
     if (!por) return json({ erro: 'Informe quem está revisando.' }, 400);
+    if (b.lote) return lote(st, b, por);
     const registros = (b.registros || []).map(String).filter(Boolean);
-    const separar = (b.separar || []).filter(s => s && s.id && String(s.novo_nome || '').trim()).map(s => ({ id: String(s.id), novo_nome: String(s.novo_nome).trim().slice(0, 200), nome_atual: String(s.nome_atual || '') }));
-    if ((b.separar || []).length !== separar.length) return json({ erro: 'Todo registro marcado como "não é a mesma empresa" precisa do nome novo.' }, 400);
+    // nome novo vazio: a empresa já tem nome diferente, só sai da duplicidade
+    const separar = (b.separar || []).filter(s => s && s.id).map(s => ({ id: String(s.id), novo_nome: String(s.novo_nome || '').trim().slice(0, 200), nome_atual: String(s.nome_atual || '') }));
     const valores = {};
     for (const [k, v] of Object.entries(b.valores || {})) if (CAMPOS.includes(k) && String(v ?? '').trim()) valores[k] = String(v).trim();
     const principal = String(b.principal_id || '');
@@ -93,5 +95,39 @@ export default async (req) => {
   }
   return json({ erro: 'Método não suportado.' }, 405);
 };
+
+// Revisão em lote (fila por padrão): junta cada "mesma empresa" na decisão do principal e grava os "empresa diferente"
+async function lote(st, b, por) {
+  const itens = (b.itens || []).slice(0, 3000), em = new Date().toISOString();
+  if (!itens.length) return json({ erro: 'Nenhum item selecionado.' }, 400);
+  const rev = await carregar(st);
+  const porPrincipal = new Map();
+  for (const it of itens.filter(x => x.tipo === 'mesma' && x.id && x.principal_id)) {
+    const p = String(it.principal_id); if (!porPrincipal.has(p)) porPrincipal.set(p, { ids: new Set(), grupo: String(it.grupo || ''), idp: String(it.idp || '') });
+    porPrincipal.get(p).ids.add(String(it.id));
+  }
+  let mesmas = 0, separadas = 0;
+  for (const [p, { ids, grupo, idp }] of porPrincipal) {
+    const todos = new Set([p, ...ids]);
+    // une com decisões anteriores do mesmo grupo (não apaga o que já foi aprovado)
+    let principal = p, valores = {}, regs = new Set(todos);
+    for (const [k, d] of Object.entries(rev.decisoes)) {
+      if (d.tipo === 'grupo' && (d.registros || []).some(id => todos.has(String(id)))) { (d.registros || []).forEach(id => regs.add(String(id))); principal = String(d.principal_id || principal); valores = { ...(d.valores || {}), ...valores }; delete rev.decisoes[k]; }
+      if (d.tipo === 'separar' && todos.has(String(d.id))) delete rev.decisoes[k];
+    }
+    if (!regs.has(principal)) regs.add(principal);
+    rev.decisoes[`g:${principal}`] = { tipo: 'grupo', principal_id: principal, registros: [...regs], valores, manter_principal: true, grupo, idp, por, em, origem: 'lote' };
+    mesmas += ids.size;
+  }
+  for (const it of itens.filter(x => x.tipo === 'separar' && x.id)) {
+    const id = String(it.id);
+    for (const [k, d] of Object.entries(rev.decisoes)) if (d.tipo === 'grupo' && (d.registros || []).map(String).includes(id)) { d.registros = d.registros.filter(x => String(x) !== id); if (d.registros.length < 2) delete rev.decisoes[k]; }
+    rev.decisoes[`s:${id}`] = { tipo: 'separar', id, novo_nome: String(it.novo_nome || '').trim().slice(0, 200), nome_atual: String(it.nome_atual || ''), grupo: String(it.grupo || ''), por, em, origem: 'lote' };
+    separadas++;
+  }
+  rev.log = [...(rev.log || []), { em, por, acao: 'aprovou em lote', padrao: String(b.padrao || ''), mesma_empresa: mesmas, empresa_diferente: separadas }].slice(-500);
+  await st.setJSON('revisoes', rev);
+  return json({ ok: true, mesma_empresa: mesmas, empresa_diferente: separadas, msg: 'Revisão gravada. Vale a partir da próxima medição do DHS.' });
+}
 
 export const config = { path: ['/api/revisao'] };

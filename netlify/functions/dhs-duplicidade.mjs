@@ -1,4 +1,4 @@
-// API de automação: plano de correção da duplicidade de EMPRESAS (UNI-01 e UNI-03), agrupado por empresa real.
+// API de automação: plano de correção da duplicidade de EMPRESAS (UNI-01, UNI-03 e os do UNI-02 que já entraram numa empresa real), agrupado por empresa real.
 // GET /api/duplicidade?faixa=Auto excluir,Auto mesclar&acao=&regra=UNI-01,UNI-03&origem=&fonte=&criado_de=&criado_ate=&limite=50&cursor=0
 // Cabeçalho obrigatório quando a variável DHS_AUTOMACAO_TOKEN estiver configurada: x-dhs-token
 import { store } from './lib/run.mjs';
@@ -11,8 +11,8 @@ export default async (req) => {
   const token = process.env.DHS_AUTOMACAO_TOKEN;
   if (token && req.headers.get('x-dhs-token') !== token) return json({ erro: 'Token inválido ou ausente (cabeçalho x-dhs-token).' }, 401);
   const url = new URL(req.url), q = url.searchParams;
-  const regras = lista(q.get('regra')).length ? lista(q.get('regra')) : ['UNI-01', 'UNI-03'];
-  if (regras.some(r => !['UNI-01', 'UNI-03'].includes(r))) return json({ erro: 'Só UNI-01 e UNI-03 (empresas) estão liberados para automação.' }, 400);
+  const regras = lista(q.get('regra')).length ? lista(q.get('regra')) : ['UNI-01', 'UNI-02', 'UNI-03'];
+  if (regras.some(r => !['UNI-01', 'UNI-02', 'UNI-03'].includes(r))) return json({ erro: 'Só UNI-01, UNI-02 e UNI-03 (empresas) estão liberados para automação.' }, 400);
   const faixas = lista(q.get('faixa')), acoes = lista(q.get('acao')), origens = lista(q.get('origem'));
   const fonte = (q.get('fonte') || '').toLowerCase(), de = q.get('criado_de') || '', ate = q.get('criado_ate') || '';
   const limite = Math.min(Math.max(num(q.get('limite')) || 50, 1), 500), cursor = num(q.get('cursor'));
@@ -30,6 +30,7 @@ export default async (req) => {
     if (!ix || !ix.acao) continue;
     for (const i of ix.e) {
       const r = tab[i]; if (!r) continue;
+      if (idp === 'UNI-02' && ix.faixa && ix.faixa[i] === 'Revisão') continue; // no UNI-02 só entra quem já está numa empresa real
       const atual = reg.get(i);
       if (atual) { atual.regras.push(idp); continue; }
       reg.set(i, {
@@ -67,7 +68,7 @@ export default async (req) => {
   const pagina = todas.slice(cursor, cursor + limite);
   // "não é a mesma empresa": renomear no HubSpot para não voltar a parecer duplicidade
   const nomeAtual = new Map(tab.map(r => [String(r.record_id), r.nome || '']));
-  const renomear = Object.values(rev.decisoes || {}).filter(d => d.tipo === 'separar' && nomeAtual.has(String(d.id)) && nomeAtual.get(String(d.id)) !== d.novo_nome)
+  const renomear = Object.values(rev.decisoes || {}).filter(d => d.tipo === 'separar' && d.novo_nome && nomeAtual.has(String(d.id)) && nomeAtual.get(String(d.id)) !== d.novo_nome)
     .map(d => ({ id: String(d.id), nome_atual: nomeAtual.get(String(d.id)), novo_nome: d.novo_nome, propriedade: 'name', revisado_por: d.por, revisado_em: d.em }));
   return json({
     medicao: resumo ? resumo.gerado_em : null, versao_regras: resumo ? resumo.metodologia : null,
