@@ -14,6 +14,8 @@ export async function runMedicao() {
     const token = Netlify.env.get('HUBSPOT_TOKEN');
     if (!token) throw new Error('Variável de ambiente HUBSPOT_TOKEN não configurada.');
     const hs = hubspot(token);
+    // lê as decisões da revisão antes da leitura do HubSpot: o acesso ao Blobs expira poucos minutos depois do início
+    const revisoes = (await st.get('revisoes', { type: 'json' })) || { decisoes: {} };
     const types = { companies: 'companies', contacts: 'contacts', leads: 'leads', deals: 'deals' };
     const P = {}, faltando = [];
     for (const [k, type] of Object.entries(types)) { const r = await hs.resolveProps(type, PROPS[k]); P[k] = r.map; faltando.push(...r.missing); }
@@ -26,7 +28,6 @@ export async function runMedicao() {
       hs.listAll('deals', props('deals'))
     ]);
     console.log(`HubSpot lido em ${Math.round((Date.now() - t0) / 1000)}s: ${companies.length} empresas, ${contacts.length} contatos, ${leads.length} leads`);
-    const revisoes = (await store().get('revisoes', { type: 'json' })) || { decisoes: {} };
     const { summary, lists, tabelas } = computeAll({ companies, contacts, leads, deals, P, revisoes });
     summary.revisoes = { aplicadas_em: new Date().toISOString(), total: Object.keys(revisoes.decisoes || {}).length };
     const mp = computeMapa({ companies, contacts, leads, P });
@@ -34,12 +35,16 @@ export async function runMedicao() {
     const fim = new Date();
     const out = { ...summary, gerado_em: fim.toISOString(), duracao_s: Math.round((fim - inicio) / 1000), propriedades_faltando: faltando };
     const st2 = store(); // token novo para gravar no fim da medição
-    await st2.setJSON('latest', out);
     const dia = fim.toISOString().slice(0, 10);
-    await st2.setJSON(`history/${dia}`, { data: dia, gerado_em: out.gerado_em, versao: '2.0', dhs: out.dhs, dimensoes: out.dimensoes.map(d => ({ dimensao: d.dimensao, nome: d.nome, total: d.total, uso: d.uso })) });
-    for (const [t, rows] of Object.entries(tabelas)) await st2.setJSON(`tab/${t}`, rows);
-    await Promise.all(Object.entries(lists).map(([idp, ix]) => st2.setJSON(`idx/${idp}`, ix)));
-    await Promise.all(Object.entries(mp.lists).map(([idp, rows]) => st2.setJSON(`lists/${idp}`, rows)));
+    // grava tudo em paralelo: em série, as últimas gravações passavam do prazo do acesso ao Blobs ("Token expired")
+    // e o painel ficava com o resumo novo e as listas antigas
+    await Promise.all([
+      ...Object.entries(tabelas).map(([t, rows]) => st2.setJSON(`tab/${t}`, rows)),
+      ...Object.entries(lists).map(([idp, ix]) => st2.setJSON(`idx/${idp}`, ix)),
+      ...Object.entries(mp.lists).map(([idp, rows]) => st2.setJSON(`lists/${idp}`, rows)),
+      st2.setJSON(`history/${dia}`, { data: dia, gerado_em: out.gerado_em, versao: '2.0', dhs: out.dhs, dimensoes: out.dimensoes.map(d => ({ dimensao: d.dimensao, nome: d.nome, total: d.total, uso: d.uso })) })
+    ]);
+    await st2.setJSON('latest', out); // por último: o painel só muda quando as listas já estão gravadas
     console.log(`Gravado em ${Math.round((Date.now() - fim) / 1000)}s`);
     await store().setJSON('status', { estado: 'ok', inicio: inicio.toISOString(), fim: new Date().toISOString() });
   } catch (e) {

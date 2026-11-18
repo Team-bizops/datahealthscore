@@ -21,7 +21,7 @@ const nomeBase = (s) => sem(s).replace(/\b(ltda|s\/?a|sa|inc|llc|ltd|corp|grupo|
 const digits = (s) => (s || '').replace(/\D/g, '');
 const num = (v) => (vazio(v) ? null : Number(v));
 const link = (t, id) => `https://app.hubspot.com/contacts/${PORTAL}/record/${t}/${id}`;
-const liSlug = (u, tipo) => { const m = String(u || '').toLowerCase().match(new RegExp(`linkedin\\.com/${tipo}/([^/?#]+)`)); return m ? decodeURIComponent(m[1]).replace(/\/$/, '') : null; };
+const liSlug = (u, tipo) => { const m = String(u || '').toLowerCase().match(new RegExp(`linkedin\\.com/${tipo}/([^/?#]+)`)); if (!m) return null; let v = m[1]; try { v = decodeURIComponent(v); } catch (e) { /* endereço com % inválido: usa como está */ } return v.replace(/\/$/, ''); };
 
 function cnpjValido(cn) {
   if (cn.length !== 14 || /^(\d)\1{13}$/.test(cn)) return false;
