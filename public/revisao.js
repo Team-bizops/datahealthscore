@@ -75,8 +75,11 @@
     const st = {
       principal: (dec && regs.some(r => r.id === String(dec.principal_id)) ? String(dec.principal_id) : (regs.find(r => r.principal) || regs[0]).id),
       fora: new Map(regs.filter(r => sep.has(r.id)).map(r => [r.id, sep.get(r.id).novo_nome])),
-      valores: { ...((dec && dec.valores) || {}) }
+      valores: { ...((dec && dec.valores) || {}) },
+      tocados: new Set(Object.keys((dec && dec.valores) || {})) // campos que a pessoa escolheu; os outros seguem o principal
     };
+    // trocou o principal ou tirou alguém do grupo: os campos não escolhidos voltam ao valor do principal novo
+    const reiniciar = () => { Object.keys(st.valores).forEach(k => { if (!st.tocados.has(k)) delete st.valores[k]; }); };
     const P = () => regs.find(r => r.id === st.principal);
 
     box.append(el('div', { class: 'topo' }, el('h3', { text: `Revisar grupo · ${grupo}` }), el('button', { class: 'btn', text: 'Fechar ×', onclick: fechar })));
@@ -95,11 +98,11 @@
       tb.innerHTML = '';
       regs.forEach(r => {
         const fora = st.fora.has(r.id);
-        const sel = el('select', { 'aria-label': 'É a mesma empresa?', onchange: (ev) => { if (ev.target.value === 'nao') { if (r.id === st.principal) { const o = regs.find(x => x.id !== r.id && !st.fora.has(x.id)); if (o) st.principal = o.id; } st.fora.set(r.id, sugerirNome(r, P())); } else st.fora.delete(r.id); linhas(); campos(); resumo(); } },
+        const sel = el('select', { 'aria-label': 'É a mesma empresa?', onchange: (ev) => { if (ev.target.value === 'nao') { if (r.id === st.principal) { const o = regs.find(x => x.id !== r.id && !st.fora.has(x.id)); if (o) st.principal = o.id; } st.fora.set(r.id, sugerirNome(r, P())); } else st.fora.delete(r.id); reiniciar(); linhas(); campos(); resumo(); } },
           el('option', { value: 'sim', text: so02 ? 'Revisar depois' : 'Sim, mesma empresa', selected: !fora }), el('option', { value: 'nao', text: 'Não · renomear', selected: fora }));
         const cel = el('td', { class: 'keep' }, sel);
         if (fora) { const inp = el('input', { type: 'text', class: 'nn', value: st.fora.get(r.id), 'aria-label': 'Nome novo', oninput: (ev) => { st.fora.set(r.id, ev.target.value); } }); cel.append(inp, el('div', { class: 'mut', text: 'Nome novo no HubSpot (ex.: com país ou filial)' })); }
-        const rad = so02 ? null : el('td', { class: 'keep' }, el('input', { type: 'radio', name: 'rv-principal', 'aria-label': 'Principal', checked: r.id === st.principal, disabled: fora, onchange: () => { st.principal = r.id; linhas(); campos(); resumo(); } }));
+        const rad = so02 ? null : el('td', { class: 'keep' }, el('input', { type: 'radio', name: 'rv-principal', 'aria-label': 'Principal', checked: r.id === st.principal, disabled: fora, onchange: () => { st.principal = r.id; reiniciar(); linhas(); campos(); resumo(); } }));
         const nome = el('td', {}, el('a', { href: r.link, target: '_blank', rel: 'noopener', text: r.nome || '(sem nome)' }), r.id === st.principal && !so02 ? el('span', { class: 'tag p', text: 'principal' }) : null, r.em_uso ? el('span', { class: 'tag', text: 'em uso' }) : null,
           el('div', { class: 'mut', text: `${r.dominio || 'sem domínio'} · ID ${r.id}${r.pais ? ' · ' + r.pais : ''}${r.segmento ? ' · ' + r.segmento : ''}` }), r.contatos_emails ? el('div', { class: 'mut', text: r.contatos_emails }) : null);
         const vinc = el('td', { text: [r.lifecycle === 'customer' ? 'cliente' : '', r.n_negocios ? `${nint(r.n_negocios)} negócios` : '', r.n_contatos ? `${nint(r.n_contatos)} contatos` : '', r.n_leads ? `${nint(r.n_leads)} leads` : ''].filter(Boolean).join(' · ') || 'sem vínculos' });
@@ -121,7 +124,7 @@
       lista.forEach(([k, rot]) => {
         const vistos = new Map(); dentro.forEach(r => { const n = norm(k, r[k]); if (n && !vistos.has(n)) vistos.set(n, { v: r[k], de: [] }); if (n) vistos.get(n).de.push(r.id === p.id ? 'principal' : `ID ${r.id}`); });
         const atual = st.valores[k] != null ? st.valores[k] : (p[k] || '');
-        const s = el('select', { 'aria-label': rot, onchange: (ev) => { st.valores[k] = ev.target.value; resumo(); } });
+        const s = el('select', { 'aria-label': rot, onchange: (ev) => { st.valores[k] = ev.target.value; st.tocados.add(k); resumo(); } });
         const vals = [...vistos.values()].map(x => x.v);
         vistos.forEach(x => s.appendChild(el('option', { value: x.v, text: `${x.v} · ${x.de.join(', ')}`, selected: norm(k, x.v) === norm(k, atual) })));
         if (OPC[k]) { const og = el('optgroup', { label: 'Outro valor' }); OPC[k].filter(o => !vals.some(v => norm(k, v) === norm(k, o))).forEach(o => og.appendChild(el('option', { value: o, text: o, selected: norm(k, o) === norm(k, atual) }))); s.appendChild(og); }
