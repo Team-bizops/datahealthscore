@@ -68,8 +68,10 @@ export default async (req) => {
   const pagina = todas.slice(cursor, cursor + limite);
   // "não é a mesma empresa": renomear no HubSpot para não voltar a parecer duplicidade
   const nomeAtual = new Map(tab.map(r => [String(r.record_id), r.nome || '']));
-  const renomear = Object.values(rev.decisoes || {}).filter(d => d.tipo === 'separar' && d.novo_nome && nomeAtual.has(String(d.id)) && nomeAtual.get(String(d.id)) !== d.novo_nome)
-    .map(d => ({ id: String(d.id), nome_atual: nomeAtual.get(String(d.id)), novo_nome: d.novo_nome, propriedade: 'name', revisado_por: d.por, revisado_em: d.em }));
+  // o HubSpot só aceita letras, números e espaço no nome novo: "Allianz (Brasil)" vira "Allianz Brasil"
+  const limpaNome = (s) => String(s || '').normalize('NFC').replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  const renomear = Object.values(rev.decisoes || {}).filter(d => d.tipo === 'separar' && limpaNome(d.novo_nome) && nomeAtual.has(String(d.id)) && nomeAtual.get(String(d.id)) !== limpaNome(d.novo_nome))
+    .map(d => ({ id: String(d.id), nome_atual: nomeAtual.get(String(d.id)), novo_nome: limpaNome(d.novo_nome), propriedade: 'name', revisado_por: d.por, revisado_em: d.em }));
   return json({
     medicao: resumo ? resumo.gerado_em : null, versao_regras: resumo ? resumo.metodologia : null,
     filtros: { regras, faixas, acoes, origens, fonte, criado_de: de, criado_ate: ate },
