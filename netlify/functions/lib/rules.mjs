@@ -39,6 +39,7 @@ function porteCoerente(porte, n) {
   return true;
 }
 // País: nomes em português e inglês para a mesma chave
+const NOME_PAIS = { br: 'Brasil', us: 'Estados Unidos', mx: 'México', ar: 'Argentina', cl: 'Chile', co: 'Colômbia', pe: 'Peru', uy: 'Uruguai', py: 'Paraguai', bo: 'Bolívia', ec: 'Equador', ve: 'Venezuela', cr: 'Costa Rica', gt: 'Guatemala', sv: 'El Salvador', hn: 'Honduras', ni: 'Nicarágua', pa: 'Panamá', do: 'República Dominicana', pr: 'Porto Rico', es: 'Espanha', pt: 'Portugal', fr: 'França', de: 'Alemanha', it: 'Itália', gb: 'Reino Unido', ie: 'Irlanda', nl: 'Países Baixos', be: 'Bélgica', ch: 'Suíça', at: 'Áustria', ca: 'Canadá', au: 'Austrália', in: 'Índia', cn: 'China', jp: 'Japão', ma: 'Marrocos', za: 'África do Sul', ae: 'Emirados Árabes', il: 'Israel', tr: 'Turquia', pl: 'Polônia', se: 'Suécia', no: 'Noruega', dk: 'Dinamarca', fi: 'Finlândia', ru: 'Rússia', sg: 'Singapura', nz: 'Nova Zelândia' };
 const PAISES = { brasil: 'br', brazil: 'br', br: 'br', 'estados unidos': 'us', 'united states': 'us', usa: 'us', eua: 'us', us: 'us', mexico: 'mx', mx: 'mx', argentina: 'ar', chile: 'cl', colombia: 'co', peru: 'pe',
   portugal: 'pt', espanha: 'es', spain: 'es', uruguai: 'uy', uruguay: 'uy', paraguai: 'py', paraguay: 'py', equador: 'ec', ecuador: 'ec', bolivia: 'bo', venezuela: 've', canada: 'ca',
   'reino unido': 'gb', 'united kingdom': 'gb', inglaterra: 'gb', alemanha: 'de', germany: 'de', franca: 'fr', france: 'fr', italia: 'it', italy: 'it', india: 'in', china: 'cn', japao: 'jp', japan: 'jp',
@@ -481,7 +482,9 @@ export function computeAll(d) {
     // UNI-02 com certeza de ser a mesma empresa: mesmo nome, mesmo país e (mesmo LinkedIn ou um dos dois sem nenhum vínculo)
     for (const ms of gruposDe('UNI-02').values()) for (let a = 0; a < ms.length; a++) for (let b = a + 1; b < ms.length; b++) {
       const A = infoE[ms[a]], B = infoE[ms[b]];
-      if (!A.confiavel || !B.confiavel || !A.nmb || A.nmb !== B.nmb || (A.pk && B.pk && A.pk !== B.pk)) continue;
+      // mesmo país: os dois iguais, ou um sem país com o outro do Brasil (.com × .com.br); .com × .ma, .co etc. não junta
+      const mesmoPais = A.pk === B.pk || (!A.pk && B.pk === 'br') || (!B.pk && A.pk === 'br');
+      if (!A.confiavel || !B.confiavel || !A.nmb || A.nmb !== B.nmb || !mesmoPais) continue;
       const li = !!A.li && A.li === B.li;
       if (!li && !A.vazio && !B.vazio) continue;
       une(ms[a], ms[b]);
@@ -609,8 +612,10 @@ export function computeAll(d) {
       if (semConf) return ['Conferir', 'Baixa', 'Sem principal confiável', ''];
       if (o.ctOutra) return ['Conferir', 'Baixa', 'Contatos de outra empresa', ''];
       const mesmoNome = !!o.nmb && !!p.nmb && (o.nmb === p.nmb || (Math.min(o.nmb.length, p.nmb.length) >= 4 && (o.nmb.includes(p.nmb) || p.nmb.includes(o.nmb))));
-      const paisDif = !!o.pk && !!p.pk && o.pk !== p.pk, li = !!o.li && o.li === p.li;
-      if (paisDif) return mesmoNome ? ['Empresa diferente', 'Alta', 'Mesmo nome, outro país', `${ro.nome} (${ro.pais || o.pk.toUpperCase()})`] : ['Empresa diferente', 'Alta', 'Outro país, nome já diferente', ''];
+      const paisDif = !!o.pk && !!p.pk && o.pk !== p.pk && o.dom !== p.dom, li = !!o.li && o.li === p.li;
+      // outro país: se o nome já é diferente (ex.: Claro Argentina × Claro), só sai da duplicidade; se é igual, sugere nome com o país
+      if (paisDif) return o.nmb === p.nmb ? ['Empresa diferente', 'Alta', 'Mesmo nome, outro país', `${ro.nome} (${ro.pais || NOME_PAIS[o.pk] || o.pk.toUpperCase()})`] : ['Empresa diferente', 'Alta', 'Outro país, nome já diferente', ''];
+      if (o.dom && o.dom === p.dom && o.pk && p.pk && o.pk !== p.pk) return ['Mesma empresa', 'Média', 'Mesmo domínio, país divergente', ''];
       if (li && mesmoNome) return ['Mesma empresa', 'Alta', 'Mesmo nome e mesmo LinkedIn', ''];
       if (li) return ['Mesma empresa', 'Média', 'Mesmo LinkedIn, nome diferente', ''];
       if (mesmoNome && o.raiz && o.raiz === p.raiz) return diverg ? ['Mesma empresa', 'Média', 'Mesmo nome e domínio, com divergência de campo', ''] : ['Mesma empresa', 'Alta', 'Mesmo nome, mesmo país, outro final de domínio (.com × .com.br)', ''];
