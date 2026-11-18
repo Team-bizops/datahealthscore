@@ -1,5 +1,5 @@
 // Regras do Data Health Score — escopo: Empresas, Contatos e Leads (SDRs e Executivos).
-import { PESOS, LEAD_PIPELINES, LEAD_FECHADO, LEAD_AGENDADO, PORTAL, TETO_OBJETO } from './config.mjs';
+import { PESOS, LEAD_PIPELINES, LEAD_FECHADO, LEAD_AGENDADO, PORTAL, TETO_OBJETO, UNI02_SEPARA_PAIS } from './config.mjs';
 import { assoc } from './hubspot.mjs';
 
 const PUB = /^(gmail|hotmail|outlook|yahoo|icloud|live|bol|uol|terra)\./;
@@ -16,6 +16,8 @@ const SLD = new Set(['com', 'net', 'org', 'gov', 'edu', 'co', 'ind', 'art', 'adv
 const PLATAFORMAS = ['gupy.io', 'myshopify.com', 'wixsite.com', 'github.io', 'blogspot.com', 'wordpress.com', 'herokuapp.com', 'netlify.app', 'vercel.app', 'webflow.io', 'sharepoint.com', 'notion.site', 'vtexcommercestable.com.br', 'hubspotpagebuilder.com', 'onmicrosoft.com'];
 const rootKey = (dom) => { const d = String(dom || ''); const plat = PLATAFORMAS.find(x => d.endsWith('.' + x)); if (plat) return d.slice(0, -plat.length - 1).split('.')[0] + '@' + plat; const p = d.split('.').filter(Boolean); if (p.length < 2) return dom; const tld = p[p.length - 1], sld = p[p.length - 2]; if (p.length >= 3 && tld.length === 2 && (SLD.has(sld) || sld.length <= 2)) { const r = p[p.length - 3]; return (sld === 'gov' && r.length === 2 && p.length >= 4) ? p[p.length - 4] : r; } return sld; };
 const normName = (s) => (s || '').normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+// nome base para comparar empresas: sem acento, pontuação e termos societários (Ltda, S.A., Grupo, Brasil…)
+const nomeBase = (s) => sem(s).replace(/\b(ltda|s\/?a|sa|inc|llc|ltd|corp|grupo|group|holding|do brasil|brasil|brazil|me|eireli)\b/g, '').replace(/[^a-z0-9]/g, '');
 const digits = (s) => (s || '').replace(/\D/g, '');
 const num = (v) => (vazio(v) ? null : Number(v));
 const link = (t, id) => `https://app.hubspot.com/contacts/${PORTAL}/record/${t}/${id}`;
@@ -134,6 +136,18 @@ export function computeAll(d) {
     if (okd && raizElegivel(g(c, 'companies', 'nome'), dom)) { const r = rootKey(dom); if (!rootDoms.has(r)) rootDoms.set(r, new Set()); rootDoms.get(r).add(dom); }
     if (nm.length >= 3) { if (!nameDoms.has(nm)) nameDoms.set(nm, new Set()); nameDoms.get(nm).add(okd ? dom : ''); }
   }
+  // UNI-02: quem divide o domínio raiz. Regra nova (UNI02_SEPARA_PAIS): país diferente com nome diferente
+  // (ex.: Tigo Guatemala × Tigo Colombia) é filial identificada, não duplicidade.
+  const paisDe = (c) => (vazio(g(c, 'companies', 'pais')) ? paisDoDominio(normDom(g(c, 'companies', 'dominio'))) : paisKey(g(c, 'companies', 'pais')));
+  const raizMembros = new Map();
+  for (const c of empsDup) {
+    const dom = normDom(g(c, 'companies', 'dominio'));
+    if (!domEmpresaOk(dom) || !raizElegivel(g(c, 'companies', 'nome'), dom)) continue;
+    const r = rootKey(dom); if (!raizMembros.has(r)) raizMembros.set(r, []);
+    raizMembros.get(r).push({ id: c.id, dom, nm: nomeBase(g(c, 'companies', 'nome')), pk: paisDe(c) });
+  }
+  const filialPorPais = (a, b) => !!a.pk && !!b.pk && a.pk !== b.pk && a.nm !== b.nm;
+  const dupRaizNova = (c, dom) => { const ms = raizMembros.get(rootKey(dom)) || [], eu = ms.find(o => o.id === c.id); return !!eu && ms.some(o => o.id !== c.id && o.dom !== dom && !filialPorPais(eu, o)); };
   // Mesmo nome com certeza de ser a mesma empresa: mesmo país (país vazio acompanha o grupo) e sem domínio próprio diferente.
   // Registros de outro país ou com outro domínio raiz ficam de fora (podem ser filial ou outra empresa).
   const nomeCerto = new Map(); // id → [grupo, tamanho]
@@ -173,7 +187,9 @@ export function computeAll(d) {
       dup_dom: okDom && !separadas.has(c.id) && byDom.get(dom) > 1,
       sem_contato: (num(g(c, 'companies', 'n_contatos')) || 0) === 0
     };
-    f.dup_root = okDom && !separadas.has(c.id) && raizElegivel(g(c, 'companies', 'nome'), dom) && byRoot.get(rootKey(dom)) > 1 && rootDoms.get(rootKey(dom)).size > 1;
+    f.dup_root_antiga = okDom && !separadas.has(c.id) && raizElegivel(g(c, 'companies', 'nome'), dom) && byRoot.get(rootKey(dom)) > 1 && rootDoms.get(rootKey(dom)).size > 1;
+    f.dup_root_nova = f.dup_root_antiga && dupRaizNova(c, dom);
+    f.dup_root = UNI02_SEPARA_PAIS ? f.dup_root_nova : f.dup_root_antiga;
     f.dup_nome = nomeCerto.has(c.id);
     f.porte_err = f.porte_base && !porteCoerente(porte, func);
     f.cnpj_err = f.cnpj_base && !cnpjValido(cn);
@@ -432,6 +448,7 @@ export function computeAll(d) {
       o.ctOutra = tot >= 2 && !!outra && nOutra / tot >= 0.5 && iguais / tot < 0.5 && !nomeBateDominio(o.nome, outra);
       r.contatos_emails = tot ? `${tot} com e-mail corporativo: ${iguais} @${o.raiz || '—'}${nOutra ? `, ${nOutra} @${outra}` : ''}` : '';
       o.confiavel = o.nomeOk && !o.ctOutra;
+      o.nmb = nomeBase(o.nome); o.pk = paisDe(c); o.li = liSlug(g(c, 'companies', 'linkedin'), 'company') || ''; o.vazio = !o.cli && !o.neg && !o.ct && !o.ld;
       o.alerta = !o.nomeOk ? `nome "${o.nome}" não corresponde ao domínio ${dom || '—'}` : (o.ctOutra ? `a maioria dos contatos tem e-mail @${outra}, de outra empresa` : '');
       r.n_negocios = o.neg; r.n_contatos = o.ct; r.n_leads = o.ld; r.campos_preenchidos = `${o.campos} de ${CAMPOS_E.length} campos`;
       return o;
@@ -457,9 +474,23 @@ export function computeAll(d) {
     const une = (a, b) => { a = raiz(a); b = raiz(b); if (a !== b) pai[b] = a; };
     const g01 = gruposDe('UNI-01'), g03 = gruposDe('UNI-03');
     for (const ms of [...g01.values(), ...g03.values()]) ms.slice(1).forEach(i => une(ms[0], i));
+    const idxPorId = new Map(E.map((x, i) => [String(x.id), i]));
+    const extraEnt = new Set(), autoJunta = new Map(); // índice → motivo da junção automática
+    // revisão no painel: os registros aprovados como a mesma empresa entram na mesma empresa real (inclusive os do UNI-02)
+    for (const d of DEC) if (d.tipo === 'grupo') { const is = (d.registros || []).map(id => idxPorId.get(String(id))).filter(i => i != null); is.slice(1).forEach(i => une(is[0], i)); if (is.length > 1) is.forEach(i => extraEnt.add(i)); }
+    // UNI-02 com certeza de ser a mesma empresa: mesmo nome, mesmo país e (mesmo LinkedIn ou um dos dois sem nenhum vínculo)
+    for (const ms of gruposDe('UNI-02').values()) for (let a = 0; a < ms.length; a++) for (let b = a + 1; b < ms.length; b++) {
+      const A = infoE[ms[a]], B = infoE[ms[b]];
+      if (!A.confiavel || !B.confiavel || !A.nmb || A.nmb !== B.nmb || (A.pk && B.pk && A.pk !== B.pk)) continue;
+      const li = !!A.li && A.li === B.li;
+      if (!li && !A.vazio && !B.vazio) continue;
+      une(ms[a], ms[b]);
+      const mot = li ? 'mesmo nome, país e LinkedIn' : 'mesmo nome e país, um dos registros sem vínculos';
+      [ms[a], ms[b]].forEach(i => { extraEnt.add(i); if (!autoJunta.has(i)) autoJunta.set(i, mot); });
+    }
     const em01 = new Set([].concat(...g01.values()));
     const entidades = new Map();
-    for (const i of new Set([].concat(...g01.values(), ...g03.values()))) { const r = raiz(i); if (!entidades.has(r)) entidades.set(r, []); entidades.get(r).push(i); }
+    for (const i of new Set([].concat(...g01.values(), ...g03.values(), [...extraEnt]))) { const r = raiz(i); if (!entidades.has(r)) entidades.set(r, []); entidades.get(r).push(i); }
     const principalDe = new Map(), semPrincipal = new Set(), decDe = new Map();
     for (const ms of entidades.values()) {
       const info = ms.map(i => infoE[i]);
@@ -555,37 +586,61 @@ export function computeAll(d) {
         const r = { campos_a_copiar: novos.join(' | '), divergencias: diverg.join(' | '), copiar_json: novos.map(c => { const rot = c.split(' = ')[0], e = est[rot], ex = c.split(' · ')[1]; return { ...e, regra: ex || 'principal vazio' }; }) };
         if (semConf) Object.assign(r, { acao: 'Revisar', motivo: `Nenhum registro confiável para ser o principal. ${o.alerta ? 'Este: ' + o.alerta : ''}`.trim() });
         else if (!o.confiavel) Object.assign(r, { acao: 'Revisar', motivo: `Pode ser marca, unidade ou domínio errado: ${o.alerta}` });
-        else if (diverg.length) Object.assign(r, { acao: 'Revisar', motivo: `${v.length ? 'Mesclar ' + destino : 'Excluir'} depois de decidir: ${diverg.join('; ')}` });
+        else if (diverg.length && !o.aprovado) Object.assign(r, { acao: 'Revisar', motivo: `${v.length ? 'Mesclar ' + destino : 'Excluir'} depois de decidir: ${diverg.join('; ')}` });
         else if (v.length) Object.assign(r, { acao: 'Mesclar no principal', motivo: `Mesclar ${destino}: ${v.join(', ')}${novos.length ? '; copiar ' + novos.map(c => c.split(' = ')[0]).join(', ') : ''}` });
         else if (novos.length) Object.assign(r, { acao: 'Copiar campos e excluir', motivo: `Sem vínculos. Copiar para o principal: ${novos.map(c => c.split(' = ')[0]).join(', ')}; depois excluir` });
         else Object.assign(r, { acao: 'Excluir', motivo: `Sem negócios, contatos, leads e nenhum dado que falte no principal (ou que já venha de outro registro)${o.dom === p.dom ? '' : ` · principal: ${p.nome} (ID ${p.id})`}` });
         if (['Mesclar no principal', 'Copiar campos e excluir'].includes(r.acao)) novos.forEach(c => { const [k, vo] = vals[c.split(' = ')[0]]; ef[k] = vo; });
         // faixa de risco
         const outroDominio = !!o.dom && o.dom !== p.dom;
-        if (r.acao === 'Excluir' || r.acao === 'Copiar campos e excluir') r.faixa = outroDominio || o.uso ? 'Mescla assistida' : 'Auto excluir';
+        if (r.acao === 'Excluir' || r.acao === 'Copiar campos e excluir') r.faixa = (outroDominio && !autoJunta.has(o.i)) || o.uso ? 'Mescla assistida' : 'Auto excluir';
         else if (r.acao === 'Mesclar no principal') r.faixa = (!outroDominio && !o.cli && o.neg === 0 && o.ct <= 3 && o.ld <= 3) ? 'Auto mesclar' : 'Mescla assistida';
         else r.faixa = 'Revisão';
-        if (o.aprovado && r.acao !== 'Revisar') { r.faixa = 'Aprovado na revisão'; r.motivo += assin; }
+        if (autoJunta.has(o.i) && r.acao !== 'Revisar') r.motivo += ` · junto pelo UNI-02 (${autoJunta.get(o.i)})`;
+        if (o.aprovado && r.acao !== 'Revisar') { r.faixa = 'Aprovado na revisão'; r.motivo += assin + (diverg.length ? ' · nas divergências fica o valor do principal' : ''); }
         acaoEnt.set(o.i, r);
       }
       acaoEnt.get(p.i).faixa = semConf ? 'Revisão' : 'Principal';
     }
     const vinculos = (o, tipo) => [o.cli ? 'cliente' : '', o.neg ? plural(o.neg, 'negócio', 'negócios') : '', tipo === 'E' && o.ct ? plural(o.ct, 'contato', 'contatos') : '', o.ld ? plural(o.ld, 'lead', 'leads') : ''].filter(Boolean);
+    // Sugestão para quem revisa: [decisão sugerida, confiança, padrão, nome novo sugerido]
+    const sugerir = (o, p, diverg, semConf) => {
+      const ro = TAB.E[o.i];
+      if (semConf) return ['Conferir', 'Baixa', 'Sem principal confiável', ''];
+      if (o.ctOutra) return ['Conferir', 'Baixa', 'Contatos de outra empresa', ''];
+      const mesmoNome = !!o.nmb && !!p.nmb && (o.nmb === p.nmb || (Math.min(o.nmb.length, p.nmb.length) >= 4 && (o.nmb.includes(p.nmb) || p.nmb.includes(o.nmb))));
+      const paisDif = !!o.pk && !!p.pk && o.pk !== p.pk, li = !!o.li && o.li === p.li;
+      if (paisDif) return mesmoNome ? ['Empresa diferente', 'Alta', 'Mesmo nome, outro país', `${ro.nome} (${ro.pais || o.pk.toUpperCase()})`] : ['Empresa diferente', 'Alta', 'Outro país, nome já diferente', ''];
+      if (li && mesmoNome) return ['Mesma empresa', 'Alta', 'Mesmo nome e mesmo LinkedIn', ''];
+      if (li) return ['Mesma empresa', 'Média', 'Mesmo LinkedIn, nome diferente', ''];
+      if (mesmoNome && o.raiz && o.raiz === p.raiz) return diverg ? ['Mesma empresa', 'Média', 'Mesmo nome e domínio, com divergência de campo', ''] : ['Mesma empresa', 'Alta', 'Mesmo nome, mesmo país, outro final de domínio (.com × .com.br)', ''];
+      if (mesmoNome) return ['Mesma empresa', 'Média', diverg ? 'Mesmo nome, outro domínio, com divergência de campo' : 'Mesmo nome, outro domínio', ''];
+      if (!o.nomeOk) return ['Conferir', 'Baixa', 'Nome não bate com o domínio (pode ser nome errado)', ''];
+      return ['Empresa diferente', 'Média', 'Nome diferente no mesmo domínio raiz', ''];
+    };
     const classificar = (idp, tipo, revisar) => {
       const ix = lists[idp]; if (!ix || !ix.grp) return;
       const info = tipo === 'E' ? infoE : infoC, CAMPOS = tipo === 'E' ? CAMPOS_E : CAMPOS_C, rotulo = Object.fromEntries(CAMPOS);
       const melhor = tipo === 'E' ? melhorE : melhorC;
       const grupos = gruposDe(idp);
-      ix.acao = {}; ix.motivo = {}; ix.ordem = {}; ix.pid = {}; ix.pnome = {}; ix.faixa = {}; ix.copiar = {}; ix.diverg = {}; ix.copiarJ = {};
+      ix.acao = {}; ix.motivo = {}; ix.ordem = {}; ix.pid = {}; ix.pnome = {}; ix.faixa = {}; ix.copiar = {}; ix.diverg = {}; ix.copiarJ = {}; ix.sug = {};
       const resumo = { grupos: grupos.size, 'Manter (principal)': 0, 'Mesclar no principal': 0, 'Copiar campos e excluir': 0, 'Excluir': 0, 'Revisar': 0 };
       for (const membros of grupos.values()) {
         // principal: o da empresa real (UNI-01/UNI-03) ou, no UNI-02 e nos contatos, o melhor do próprio grupo
-        const pIdx = (tipo === 'E' && !revisar && principalDe.has(membros[0])) ? principalDe.get(membros[0]) : [...membros].sort((a, b) => melhor(info[a], info[b]))[0];
+        // no UNI-02, o principal do grupo é quem não vai ser mesclado nem excluído pela empresa real
+        const cand = tipo === 'E' && revisar ? membros.filter(i => !acaoEnt.has(i) || acaoEnt.get(i).acao === 'Manter (principal)') : membros;
+        const pIdx = (tipo === 'E' && !revisar && principalDe.has(membros[0])) ? principalDe.get(membros[0]) : [...(cand.length ? cand : membros)].sort((a, b) => melhor(info[a], info[b]))[0];
         const p = info[pIdx], cobertos = new Set(p.cheios), ordenados = [...membros].sort((a, b) => (a === pIdx ? -1 : b === pIdx ? 1 : melhor(info[a], info[b])));
         const semConf = tipo === 'E' && !revisar && semPrincipal.has(pIdx);
         ordenados.forEach((i, pos) => {
           const o = info[i]; ix.ordem[i] = pos; ix.pid[i] = p.id; ix.pnome[i] = p.nome;
-          if (tipo === 'E' && !revisar && acaoEnt.has(i)) { const r = acaoEnt.get(i); ix.acao[i] = r.acao; ix.motivo[i] = r.motivo; ix.faixa[i] = r.faixa; ix.copiar[i] = r.campos_a_copiar || ''; ix.diverg[i] = r.divergencias || ''; if (r.copiar_json && r.copiar_json.length) ix.copiarJ[i] = r.copiar_json; resumo[r.acao] = (resumo[r.acao] || 0) + 1; return; }
+          if (tipo === 'E' && acaoEnt.has(i)) {
+            const r = acaoEnt.get(i), pe = infoE[principalDe.get(i)];
+            ix.pid[i] = pe.id; ix.pnome[i] = pe.nome;
+            ix.acao[i] = r.acao; ix.motivo[i] = r.motivo; ix.faixa[i] = r.faixa; ix.copiar[i] = r.campos_a_copiar || ''; ix.diverg[i] = r.divergencias || ''; if (r.copiar_json && r.copiar_json.length) ix.copiarJ[i] = r.copiar_json; resumo[r.acao] = (resumo[r.acao] || 0) + 1;
+            if (i !== pe.i && (r.acao === 'Revisar' || r.faixa === 'Mescla assistida')) ix.sug[i] = sugerir(o, pe, ix.diverg[i], semPrincipal.has(pe.i));
+            return;
+          }
           if (i === pIdx) {
             const v = vinculos(o, tipo);
             ix.acao[i] = semConf ? 'Revisar' : 'Manter (principal)';
@@ -602,6 +657,7 @@ export function computeAll(d) {
             else { ix.acao[i] = 'Excluir'; ix.motivo[i] = `Sem negócios, ${tipo === 'E' ? 'contatos, ' : ''}leads e nenhum dado que falte no principal (ou que já venha de outro registro mesclado)`; }
           }
           if (!ix.faixa[i]) ix.faixa[i] = ix.acao[i] === 'Manter (principal)' ? 'Principal' : revisar || ix.acao[i] === 'Revisar' ? 'Revisão' : ix.acao[i] === 'Excluir' && !(tipo === 'C' && C[i] && C[i].uso) ? 'Auto excluir' : 'Mescla assistida';
+          if (tipo === 'E' && i !== pIdx && (ix.acao[i] === 'Revisar' || ix.faixa[i] === 'Mescla assistida')) ix.sug[i] = sugerir(o, p, ix.diverg[i], semConf);
           resumo[ix.acao[i]]++;
         });
       }
@@ -691,6 +747,24 @@ export function computeAll(d) {
     const final = penalidade(media, pior[esc]);
     return { escopo: esc, media, pior: pior[esc], pior_dimensao: pior.nome, final, impacto_penalidade: media - final, penalizou: final < media - 1e-9, status: statusDe(final), versao: '2.0' };
   });
+  // Antes/depois da regra nova do UNI-02 (país diferente com nome diferente não conta): mesma medição, as duas versões
+  const comparativoUni02 = (() => {
+    const res = { regra_ligada: UNI02_SEPARA_PAIS, uni02_antes: E.filter(x => x.f.dup_root_antiga).length, uni02_depois: E.filter(x => x.f.dup_root_nova).length };
+    const dimU = dimensoes.find(d => d.dimensao === 'unicidade');
+    ['total', 'uso'].forEach((esc, ie) => {
+      res[esc] = { atual: dhs[ie].final };
+      for (const [nome, k] of [['antes', 'dup_root_antiga'], ['depois', 'dup_root_nova']]) {
+        let av = 0, er = 0;
+        for (const x of E) { if (esc === 'uso' && !x.uso) continue; av++; if (x.f.dup_dom || x.f[k] || x.f.dup_nome) er++; }
+        const sE = av ? 100 * (av - er) / av : 100;
+        const unic = dimU.objetos.reduce((a, o) => a + ((esc === 'total' ? o.peso : o.peso_uso) || 0) * (o.objeto === 'Empresas' ? sE : (esc === 'total' ? o.saude : o.saude_uso)), 0);
+        const notas = dimensoes.map(d => (d.dimensao === 'unicidade' ? unic : d[esc]));
+        const media = dimensoes.reduce((a, d, j) => a + d.peso * notas[j], 0);
+        res[esc][nome] = { duplicidade: unic, empresas_com_duplicidade: er, dhs: penalidade(media, Math.min(...notas)) };
+      }
+    });
+    return res;
+  })();
   // Validação: mesmos registros, quatro metodologias
   const PESOS_ANT = { acuracia: 0.25, consistencia: 0.25, completude: 0.20, unicidade: 0.15, integridade: 0.15 };
   const cenario = (campo, campoUso, pesosD, pen) => ['total', 'uso'].map(esc => {
@@ -790,5 +864,5 @@ export function computeAll(d) {
     Object.entries(acc).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([o, n], i) => origens.push({ dimensao: dim, rank: i + 1, origem: origemNome[o] || o, erros: n, share: tot ? n / tot : 0 }));
   }
   const volumes = { empresas: E.length, contatos: C.length, leads: LD.length };
-  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, monitor, acoes_duplicidade: acoesDup, contatos_empresa_errada: ctErrada, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
+  return { summary: { idps: IDP, dimensoes, dhs, saudaveis, origens, volumes, comparativo, elegibilidade, monitor, acoes_duplicidade: acoesDup, comparativo_uni02: comparativoUni02, contatos_empresa_errada: ctErrada, metodologia: 'DHS 2.0 · 100% dimensões · regra 50/70 da pior dimensão · objetos 45/40/15 em Consistência, Completude e Integridade' }, lists, tabelas: TAB };
 }

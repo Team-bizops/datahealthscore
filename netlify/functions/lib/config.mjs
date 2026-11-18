@@ -4,6 +4,9 @@ export const PORTAL = '44530090';
 
 // Escopo do score: Empresas, Contatos e Leads (SDRs e Executivos).
 export const TETO_OBJETO = 0.7; // nenhum objeto pesa mais que 70% numa dimensão
+// UNI-02: país diferente com nome diferente (ex.: Tigo Guatemala × Tigo Colombia) deixa de contar como duplicidade.
+// Desligado até a validação do antes/depois; a medição calcula as duas versões em comparativo_uni02.
+export const UNI02_SEPARA_PAIS = false;
 export const PESOS = { acuracia: 0.25, consistencia: 0.20, completude: 0.20, unicidade: 0.20, integridade: 0.15 };
 
 export const LEAD_PIPELINES = ['739923376', '916004981']; // SDRs, Executivos
