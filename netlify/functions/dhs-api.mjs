@@ -1,4 +1,4 @@
-import { store } from './lib/run.mjs';
+import { store, lerTab } from './lib/run.mjs';
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
@@ -28,7 +28,7 @@ export default async (req) => {
     const semGrupo = (r) => { const { grupo_duplicidade, ...resto } = r || {}; return resto; };
     const ix = await st.get(`idx/${idp}`, { type: 'json' });
     if (ix) {
-      const tab = (await st.get(`tab/${ix.t}`, { type: 'json' })) || [];
+      const tab = await lerTab(st, ix.t);
       const err = new Set(ix.e);
       rows = ix.b.map(i => (ix.grp && ix.grp[i] != null
         ? { grupo_duplicidade: ix.grp[i], qtd_no_grupo: ix.qtd[ix.grp[i]], ...(ix.acao ? { acao: ix.acao[i], motivo: ix.motivo[i], principal_id: ix.pid ? ix.pid[i] : undefined, principal_nome: ix.pnome ? ix.pnome[i] : undefined, faixa_risco: ix.faixa ? ix.faixa[i] : undefined, campos_a_copiar: ix.copiar ? ix.copiar[i] : undefined, divergencias: ix.diverg ? ix.diverg[i] : undefined, ...(ix.sug && ix.sug[i] ? { sugestao: ix.sug[i][0], confianca: ix.sug[i][1], padrao: ix.sug[i][2], nome_sugerido: ix.sug[i][3] } : {}) } : {}), ...semGrupo(tab[i]), _erro: err.has(i), _g: ix.grp[i], _o: ix.ordem ? ix.ordem[i] : 0 }

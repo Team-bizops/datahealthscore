@@ -1,7 +1,7 @@
 // API de automação: plano de correção da duplicidade de EMPRESAS (UNI-01, UNI-03 e os do UNI-02 que já entraram numa empresa real), agrupado por empresa real.
 // GET /api/duplicidade?faixa=Auto excluir,Auto mesclar&acao=&regra=UNI-01,UNI-03&origem=&fonte=&criado_de=&criado_ate=&limite=50&cursor=0
 // Cabeçalho obrigatório quando a variável DHS_AUTOMACAO_TOKEN estiver configurada: x-dhs-token
-import { store } from './lib/run.mjs';
+import { store, lerTab } from './lib/run.mjs';
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 const lista = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -19,7 +19,7 @@ export default async (req) => {
 
   const st = store();
   const resumo = await st.get('latest', { type: 'json' });
-  const tab = (await st.get('tab/E', { type: 'json' })) || [];
+  const tab = await lerTab(st, 'E');
   // decisões da revisão no painel: só vale "Aprovado na revisão" se a decisão ainda existir
   const rev = (await st.get('revisoes', { type: 'json' })) || { decisoes: {} };
   const aprovados = new Map();

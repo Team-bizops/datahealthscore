@@ -4,7 +4,7 @@
 // POST   /api/revisao  { por, tipo: 'grupo', principal_id, registros: [ids], valores: {campo: valor}, separar: [{ id, novo_nome }] }
 // DELETE /api/revisao?id=<chave>
 // Gravar e desfazer pedem só o nome de quem revisou (o painel é de uso interno da BizOps).
-import { store } from './lib/run.mjs';
+import { store, lerTab } from './lib/run.mjs';
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 const CAMPOS = ['porte', 'funcionarios', 'segmento', 'pais', 'abrangencia', 'cnpj', 'linkedin', 'website', 'telefone'];
@@ -20,7 +20,7 @@ export default async (req) => {
     if (!idp) return json({ decisoes: rev.decisoes, log: (rev.log || []).slice(-50) });
     if (!['UNI-01', 'UNI-02', 'UNI-03'].includes(idp)) return json({ erro: 'Revisão só para UNI-01, UNI-02 e UNI-03.' }, 400);
     const latest = await st.get('latest', { type: 'json' });
-    const tab = (await st.get('tab/E', { type: 'json' })) || [];
+    const tab = await lerTab(st, 'E');
     const ix = await st.get(`idx/${idp}`, { type: 'json' });
     if (!ix || !ix.grp) return json({ erro: 'Lista não encontrada. Rode uma medição.' }, 404);
     const doGrupo = ix.e.filter(i => String(ix.grp[i]) === String(grupo));
