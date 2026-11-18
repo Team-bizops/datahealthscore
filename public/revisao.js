@@ -53,7 +53,7 @@
   const sugerirNome = (r, p) => {
     const tld = (String(r.dominio).match(/\.([a-z]{2})$/i) || [])[1];
     const pais = r.pais && (!p || norm('pais', r.pais) !== norm('pais', p.pais)) ? r.pais : (tld && tld !== 'br' && !(p && /\.br$/i.test(p.dominio)) ? tld.toUpperCase() : '');
-    return `${r.nome} (${pais || 'Filial'})`;
+    return `${r.nome} ${pais || 'Filial'}`; // o HubSpot não aceita parênteses no nome
   };
 
   const abrir = async (idp, grupo) => {
@@ -101,7 +101,7 @@
         const sel = el('select', { 'aria-label': 'É a mesma empresa?', onchange: (ev) => { if (ev.target.value === 'nao') { if (r.id === st.principal) { const o = regs.find(x => x.id !== r.id && !st.fora.has(x.id)); if (o) st.principal = o.id; } st.fora.set(r.id, sugerirNome(r, P())); } else st.fora.delete(r.id); reiniciar(); linhas(); campos(); resumo(); } },
           el('option', { value: 'sim', text: so02 ? 'Revisar depois' : 'Sim, mesma empresa', selected: !fora }), el('option', { value: 'nao', text: 'Não · renomear', selected: fora }));
         const cel = el('td', { class: 'keep' }, sel);
-        if (fora) { const inp = el('input', { type: 'text', class: 'nn', value: st.fora.get(r.id), 'aria-label': 'Nome novo', oninput: (ev) => { st.fora.set(r.id, ev.target.value); } }); cel.append(inp, el('div', { class: 'mut', text: 'Nome novo no HubSpot (ex.: com país ou filial)' })); }
+        if (fora) { const inp = el('input', { type: 'text', class: 'nn', value: st.fora.get(r.id), 'aria-label': 'Nome novo', oninput: (ev) => { st.fora.set(r.id, ev.target.value); } }); cel.append(inp, el('div', { class: 'mut', text: 'Nome novo no HubSpot, com país ou filial (só letras, números e espaço)' })); }
         const rad = so02 ? null : el('td', { class: 'keep' }, el('input', { type: 'radio', name: 'rv-principal', 'aria-label': 'Principal', checked: r.id === st.principal, disabled: fora, onchange: () => { st.principal = r.id; reiniciar(); linhas(); campos(); resumo(); } }));
         const nome = el('td', {}, el('a', { href: r.link, target: '_blank', rel: 'noopener', text: r.nome || '(sem nome)' }), r.id === st.principal && !so02 ? el('span', { class: 'tag p', text: 'principal' }) : null, r.em_uso ? el('span', { class: 'tag', text: 'em uso' }) : null,
           el('div', { class: 'mut', text: `${r.dominio || 'sem domínio'} · ID ${r.id}${r.pais ? ' · ' + r.pais : ''}${r.segmento ? ' · ' + r.segmento : ''}` }), r.contatos_emails ? el('div', { class: 'mut', text: r.contatos_emails }) : null);
