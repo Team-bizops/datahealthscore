@@ -614,7 +614,7 @@ export function computeAll(d) {
       const mesmoNome = !!o.nmb && !!p.nmb && (o.nmb === p.nmb || (Math.min(o.nmb.length, p.nmb.length) >= 4 && (o.nmb.includes(p.nmb) || p.nmb.includes(o.nmb))));
       const paisDif = !!o.pk && !!p.pk && o.pk !== p.pk && o.dom !== p.dom, li = !!o.li && o.li === p.li;
       // outro país: se o nome já é diferente (ex.: Claro Argentina × Claro), só sai da duplicidade; se é igual, sugere nome com o país
-      if (paisDif) return o.nmb === p.nmb ? ['Empresa diferente', 'Alta', 'Mesmo nome, outro país', `${ro.nome} (${ro.pais || NOME_PAIS[o.pk] || o.pk.toUpperCase()})`] : ['Empresa diferente', 'Alta', 'Outro país, nome já diferente', ''];
+      if (paisDif) return o.nmb === p.nmb ? ['Empresa diferente', 'Alta', 'Mesmo nome, outro país', `${ro.nome} ${ro.pais || NOME_PAIS[o.pk] || o.pk.toUpperCase()}`] : ['Empresa diferente', 'Alta', 'Outro país, nome já diferente', ''];
       if (o.dom && o.dom === p.dom && o.pk && p.pk && o.pk !== p.pk) return ['Mesma empresa', 'Média', 'Mesmo domínio, país divergente', ''];
       if (li && mesmoNome) return ['Mesma empresa', 'Alta', 'Mesmo nome e mesmo LinkedIn', ''];
       if (li) return ['Mesma empresa', 'Média', 'Mesmo LinkedIn, nome diferente', ''];
